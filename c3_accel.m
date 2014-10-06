@@ -15,11 +15,11 @@ classdef c3_accel < c3_sensor
             % format is 16 bit signed with 25 samples per second on each axis
             
             fid = fopen(fullfile(this.filepath,'accel.bin'),'r');
-            [tmp_data, ~] = fread(fid, [3, inf], 'float');
+            [tmp_data, tmp_samples] = fread(fid, [3, inf], 'float');
             fclose(fid);
             
             this.data = tmp_data';
-            this.samplenum = length(this.data);
+            this.samplenum = tmp_samples/3;
         end
     end
     

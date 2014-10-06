@@ -2,7 +2,7 @@
 % Script showing how to load data and use the toolbox
 
 % Define path to the files
-path_to_data_files = fullfile(pwd, 'sample_data');
+path_to_data_files = fullfile(pwd, 'sensor_data');
 
 % Create a new C3 object
 C3 = cortrium_c3(path_to_data_files);

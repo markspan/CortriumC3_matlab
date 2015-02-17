@@ -18,7 +18,7 @@ classdef c3_resp < c3_sensor
         function load_data(this)            
             % Read data
             fid = fopen(fullfile(this.filepath,'resp_raw.bin'),'r');
-            this.data = fread(fid, Inf, 'uint16', 0, 'native');
+            this.data = fread(fid, Inf, 'int16', 0, 'native');
             fclose(fid);
             this.data(abs(this.data)>32676) = 0;
             
@@ -65,6 +65,7 @@ classdef c3_resp < c3_sensor
             
             %Plot
             figure, hold on
+            title('Respiration data');
             plot(this.data(section));
             plot(this.mintab(:,1), this.mintab(:,2),'r*')
             plot(this.maxtab(:,1), this.maxtab(:,2),'r*')

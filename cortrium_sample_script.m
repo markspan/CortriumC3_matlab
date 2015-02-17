@@ -3,6 +3,7 @@
 
 % Define path to the files
 path_to_data_files = fullfile(pwd, 'sample_data');
+%path_to_data_files = fullfile(pwd, 'sample_data_sleep_supine_1h');
 
 % Create a new C3 object
 C3 = cortrium_c3(path_to_data_files);
@@ -21,6 +22,7 @@ C3.respiration_test;
 
 % Plot sample of unfiltered ECG data
 figure, plot(C3.ecg.data);
+title('ECG data');
 
 
 %% Create figures of sensor data from accelerometer and thermometers

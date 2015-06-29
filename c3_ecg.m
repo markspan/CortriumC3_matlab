@@ -20,7 +20,7 @@ classdef c3_ecg < c3_sensor
                 this.data = horzcat(this.data, fread(fid, Inf, 'int16', 0, 'native'));
                 fclose(fid);
             end
-            this.data(abs(this.data) > 32676) = 0;
+            this.data(abs(this.data) > 32764) = NaN;
             this.samplenum = length(this.data);
         end 
     end

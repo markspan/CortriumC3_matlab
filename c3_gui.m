@@ -1,4 +1,4 @@
-function GUI_C3()
+function c3_gui()
 % WORK IN PROGRESS! Needs cleanup from old code, etc.
 
 %% Initialize variables
@@ -597,6 +597,48 @@ uicontrol('Parent',hPanelSensorDisplay,...
     'FontSize',12,...
     'Callback', @tempWinFunc);
 
+% Button, toggles Temperature_1 plot
+hTemp1Checkbox = uicontrol('Parent',hPanelSensorDisplay,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.951,0.17,0.015,0.022],...
+    'Value',1,...
+    'BackgroundColor',panelColor,...
+    'Callback',@tempPlotFunc);
+
+% Text label, for Temperature_1 toggle button
+uicontrol('Parent',hPanelSensorDisplay,...
+    'style','text',...
+    'Units','normalized',...
+    'position',[0.962,0.17,0.03,0.018],...
+    'HorizontalAlignment','left',...
+    'String','Device',...
+    'FontWeight','normal',...
+    'ForegroundColor',[1.0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Button, toggles Temperature_2 plot
+hTemp2Checkbox = uicontrol('Parent',hPanelSensorDisplay,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.951,0.149,0.015,0.022],...
+    'Value',1,...
+    'BackgroundColor',panelColor,...
+    'Callback',@tempPlotFunc);
+
+% Text label, for Temperature_2 toggle button
+uicontrol('Parent',hPanelSensorDisplay,...
+    'style','text',...
+    'Units','normalized',...
+    'position',[0.962,0.149,0.03,0.018],...
+    'HorizontalAlignment','left',...
+    'String','Surface',...
+    'FontWeight','normal',...
+    'ForegroundColor',colGreen,...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
 %% Units that were in pixels are set to normalized units
 
 % Change units to normalized so components resize automatically.
@@ -678,7 +720,7 @@ set(hFig,'Visible','on');
         plotECG(C3,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox)
         plotResp(C3,hAxesResp);
         plotAccel(C3,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox,hAccelMedfiltCheckbox);
-        plotTemp(C3,hAxesTemp);
+        plotTemp(C3,hAxesTemp,hTemp1Checkbox,hTemp2Checkbox);
     end
 
     function ResetRangeFcn(varargin)
@@ -708,6 +750,10 @@ set(hFig,'Visible','on');
     function accelPlotFunc(varargin)
         %display(varargin);
         plotAccel(C3,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox,hAccelMedfiltCheckbox);
+    end
+
+    function tempPlotFunc(varargin)
+        plotTemp(C3,hAxesTemp,hTemp1Checkbox,hTemp2Checkbox);
     end
 
 %% Functions for creating separate, floating plot windows
@@ -798,12 +844,20 @@ set(hFig,'Visible','on');
         hTempFig = figure('Numbertitle','off','Name','Temperature');
         hAxesTempWindow = axes;
         hold on;
-        plot(hAxesTempWindow,xAxisTimeSeconds,C3.temp.data(:,1),'r','LineWidth',1);
-        plot(hAxesTempWindow,xAxisTimeSeconds,C3.temp.data(:,2),'g','LineWidth',1);
+        % build a cell array for the plot legend, and plot according to selected checkboxes
+        legendList = cell(0);
+        if get(hTemp1Checkbox, 'Value') == 1 % is checkbox for Temp_1 is ON
+            plot(hAxesTempWindow,xAxisTimeSeconds,C3.temp.data(:,1),'r','LineWidth',1);
+            legendList(length(legendList)+1) = {'Device'};
+        end
+        if get(hTemp2Checkbox, 'Value') == 1 % is checkbox for Temp_1 is ON
+            plot(hAxesTempWindow,xAxisTimeSeconds,C3.temp.data(:,2),'g','LineWidth',1);
+            legendList(length(legendList)+1) = {'Surface'};
+        end
         title('Temperature','FontSize',12,'FontWeight','bold');
         xlabel('time [seconds]','FontSize',12);
         ylabel('sample value','FontSize',12);
-        legend(hAxesTempWindow,'Temp\_1','Temp\_2','Location','northoutside','Orientation','horizontal');
+        legend(hAxesTempWindow,legendList,'Location','northoutside','Orientation','horizontal');
         set(hAxesTempWindow,'FontSize',11);
     end
 
@@ -823,12 +877,12 @@ set(hFig,'Visible','on');
     end
 end
 
-%% Functions (Work in progress... starting to move inline functions outside of main function. Also, old code from previous project needs to be repurposed or deleted.)
+%% Functions (Work in progress... starting to move inline functions outside of main function.)
 
 function plotECG(C3,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox)
+    global colRed;
     global colGreen;
     global colBlue;
-    global colRed;
 
     %calculate total sample time (= samples / sample freq)
     sampletime = length(C3.ecg.data)/C3.ecg.fs;
@@ -886,18 +940,28 @@ function plotAccel(C3,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox
     end
 end
 
-function plotTemp(C3,hAxesTemp)
+function plotTemp(C3,hAxesTemp,hTemp1Checkbox,hTemp2Checkbox)
+    global colRed;
+    global colGreen;
+    global colBlue;
     %calculate total sample time (= samples / sample freq)
     sampletime = length(C3.temp.data)/C3.temp.fs;
     % create x-axis values
     xAxisTimeSeconds = linspace(0,sampletime,length(C3.temp.data));
     cla(hAxesTemp);
-    plot(hAxesTemp,xAxisTimeSeconds,C3.temp.data(:,1),'r','LineWidth',1);
-    plot(hAxesTemp,xAxisTimeSeconds,C3.temp.data(:,2),'g','LineWidth',1);
+    if get(hTemp1Checkbox, 'Value') == 1 % is checkbox for Temp_1 is ON
+        plot(hAxesTemp,xAxisTimeSeconds,C3.temp.data(:,1),'r','LineWidth',1);
+    end
+    if get(hTemp2Checkbox, 'Value') == 1 % is checkbox for Temp_2 is ON
+        plot(hAxesTemp,xAxisTimeSeconds,C3.temp.data(:,2),'g','LineWidth',1);
+    end
     xlabel(hAxesTemp,'time [seconds]','FontSize',10);
 end
 
 function setRangeEdits(C3,hEditStartHH,hEditStartMM,hEditStartSS,hEditEndHH,hEditEndMM,hEditEndSS)
+    % Right now this only shows the total length (in HH:MM:SS) of the
+    % dataset when loaded. Later this will handle updating the time range
+    % when browsing through the data.
     set(hEditStartHH,'String','00');
     set(hEditStartMM,'String','00');
     set(hEditStartSS,'String','00');

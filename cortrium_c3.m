@@ -1,6 +1,6 @@
 classdef cortrium_c3 < handle
     %% Cortrium C3 device MATLAB script for reading sensor data
-    % (c) 2014 Cortrium
+    % (c) 2015 Cortrium
     properties
         ecg
         accel

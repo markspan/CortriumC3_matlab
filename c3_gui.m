@@ -1,5 +1,6 @@
 function c3_gui()
-% WORK IN PROGRESS! Needs cleanup from old code, etc.
+%%% Cortrium sample script %%%
+% GUI script for loading C3 data
 
 %% Initialize variables
 
@@ -22,6 +23,14 @@ global colRed;
 colGreen = [0.0 0.85 0.0];
 colBlue = [0 0 1];
 colRed = [1 0 0];
+
+% global hAxesECG;
+% global hAxesResp;
+% global hAxesTemp;
+% global hAxesAccel;
+
+global timeFormat;
+timeFormat = 'HH:MM:SS';
 
 % (CLEAN UP) global variable for median filtered Accel data
 global data_accel_medfilt;
@@ -46,6 +55,8 @@ hFig = figure('Name','C3 sensor data',...
     'Visible','off',...
     'ResizeFcn',@resizeFcn,...
     'CloseRequestFcn',@closeRequestFcn);
+
+set(allchild(hFig),'DefaultFigureGraphicsSmoothing','off');
 
 % create a parent panel for sub-panels in the figure window
 hPanelMain = uipanel('BorderType','none','Position',[0 0 1 1],...
@@ -673,6 +684,8 @@ set(hFig,'Visible','on');
             loadAndFormatData;
             setRangeEdits(C3,hEditStartHH,hEditStartMM,hEditStartSS,hEditEndHH,hEditEndMM,hEditEndSS);
             plotSensorData;
+            xlim auto;
+            ylim auto;
         end
     end
 
@@ -717,10 +730,15 @@ set(hFig,'Visible','on');
     end
 
     function plotSensorData()
+        
         plotECG(C3,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox)
         plotResp(C3,hAxesResp);
         plotAccel(C3,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox,hAccelMedfiltCheckbox);
         plotTemp(C3,hAxesTemp,hTemp1Checkbox,hTemp2Checkbox);
+        %linkaxes([hAxesECG hAxesResp hAxesAccel hAxesTemp], 'off');
+        %xlim auto;
+        %ylim auto;
+        linkaxes([hAxesECG hAxesResp hAxesAccel hAxesTemp], 'x');
     end
 
     function ResetRangeFcn(varargin)
@@ -755,6 +773,8 @@ set(hFig,'Visible','on');
     function tempPlotFunc(varargin)
         plotTemp(C3,hAxesTemp,hTemp1Checkbox,hTemp2Checkbox);
     end
+
+
 
 %% Functions for creating separate, floating plot windows
 
@@ -883,79 +903,100 @@ function plotECG(C3,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox)
     global colRed;
     global colGreen;
     global colBlue;
+    global timeFormat;
 
     %calculate total sample time (= samples / sample freq)
-    sampletime = length(C3.ecg.data)/C3.ecg.fs;
+    %sampletime = length(C3.ecg.data)/C3.ecg.fs;
     % create x-axis values
-    xAxisTimeSeconds = linspace(0,sampletime,length(C3.ecg.data));
+    %xAxisTimeSeconds = linspace(0,sampletime,length(C3.ecg.data));
+xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+    datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.ecg.samplenum);
     % clear the plot, then create new plot
     cla(hAxesECG);
     if get(hECG1Checkbox, 'Value') == 1 % is checkbox for ECG_1 is ON
-        plot(hAxesECG,xAxisTimeSeconds,C3.ecg.data(:,1),'r','LineWidth',1);
+        plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,1),'r','LineWidth',1);
     end
     if get(hECG2Checkbox, 'Value') == 1 % is checkbox for ECG_2 is ON
-        plot(hAxesECG,xAxisTimeSeconds,C3.ecg.data(:,2),'g','LineWidth',1);
+        plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,2),'g','LineWidth',1);
     end
     if get(hECG3Checkbox, 'Value') == 1 % is checkbox for ECG_3 is ON
-        plot(hAxesECG,xAxisTimeSeconds,C3.ecg.data(:,3),'b','LineWidth',1);
+        plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,3),'b','LineWidth',1);
     end
+    %xlim auto;
+    %datetick(hAxesECG,'x', timeFormat, 'keeplimits', 'keepticks');
 end
 
 function plotResp(C3,hAxesResp)
+    global timeFormat;
     %calculate total sample time (= samples / sample freq)
-    sampletime = length(C3.resp.data)/C3.resp.fs;
+    %sampletime = length(C3.resp.data)/C3.resp.fs;
     % create x-axis values
-    xAxisTimeSeconds = linspace(0,sampletime,length(C3.resp.data));
+    %xAxisTimeSeconds = linspace(0,sampletime,length(C3.resp.data));
+    xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+    datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.resp.samplenum);
     cla(hAxesResp);
-    plot(hAxesResp,xAxisTimeSeconds,C3.resp.data,'r','LineWidth',1);
+    plot(hAxesResp,xAxisTimeStamp,C3.resp.data,'r','LineWidth',1);
+    %datetick(hAxesResp,'x', timeFormat, 'keeplimits', 'keepticks');
 end
 
 function plotAccel(C3,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox,hAccelMedfiltCheckbox);
     global data_accel_medfilt;
+    global timeFormat; 
     %calculate total sample time (= samples / sample freq)
-    sampletime = length(C3.accel.data)/C3.accel.fs;
+    %sampletime = length(C3.accel.data)/C3.accel.fs;
     % create x-axis values
-    xAxisTimeSeconds = linspace(0,sampletime,length(C3.accel.data));
+    %xAxisTimeSeconds = linspace(0,sampletime,length(C3.accel.data));
+    xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+    datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.accel.samplenum);
     cla(hAxesAccel);
+    
     if get(hAccelXCheckbox, 'Value') == 1 % is checkbox for Accel_X ON
         if get(hAccelMedfiltCheckbox, 'Value') == 1 % is checkbox for Medfilt ON
-            plot(hAxesAccel,xAxisTimeSeconds,data_accel_medfilt(:,1),'r','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,1),'r','LineWidth',1);
         else
-            plot(hAxesAccel,xAxisTimeSeconds,C3.accel.data(:,1),'r','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,1),'r','LineWidth',1);
         end
     end
     if get(hAccelYCheckbox, 'Value') == 1 % is checkbox for Accel_Y ON
         if get(hAccelMedfiltCheckbox, 'Value') == 1 % is checkbox for Medfilt ON
-            plot(hAxesAccel,xAxisTimeSeconds,data_accel_medfilt(:,2),'g','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,2),'g','LineWidth',1);
         else
-            plot(hAxesAccel,xAxisTimeSeconds,C3.accel.data(:,2),'g','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,2),'g','LineWidth',1);
         end
     end
     if get(hAccelZCheckbox, 'Value') == 1 % is checkbox for Accel_Z ON
         if get(hAccelMedfiltCheckbox, 'Value') == 1 % is checkbox for Medfilt ON
-            plot(hAxesAccel,xAxisTimeSeconds,data_accel_medfilt(:,3),'b','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,3),'b','LineWidth',1);
         else
-            plot(hAxesAccel,xAxisTimeSeconds,C3.accel.data(:,3),'b','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,3),'b','LineWidth',1);
         end
     end
+
+    %datetick(hAxesAccel,'x', timeFormat, 'keeplimits', 'keepticks');
 end
 
 function plotTemp(C3,hAxesTemp,hTemp1Checkbox,hTemp2Checkbox)
     global colRed;
     global colGreen;
     global colBlue;
+    global timeFormat;
+
     %calculate total sample time (= samples / sample freq)
-    sampletime = length(C3.temp.data)/C3.temp.fs;
+    %sampletime = length(C3.temp.data)/C3.temp.fs;
     % create x-axis values
-    xAxisTimeSeconds = linspace(0,sampletime,length(C3.temp.data));
+    %xAxisTimeSeconds = linspace(0,sampletime,length(C3.temp.data));
+    xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+    datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.temp.samplenum);
     cla(hAxesTemp);
     if get(hTemp1Checkbox, 'Value') == 1 % is checkbox for Temp_1 is ON
-        plot(hAxesTemp,xAxisTimeSeconds,C3.temp.data(:,1),'r','LineWidth',1);
+        plot(hAxesTemp,xAxisTimeStamp,C3.temp.data(:,1),'r','LineWidth',1);
     end
     if get(hTemp2Checkbox, 'Value') == 1 % is checkbox for Temp_2 is ON
-        plot(hAxesTemp,xAxisTimeSeconds,C3.temp.data(:,2),'g','LineWidth',1);
+        plot(hAxesTemp,xAxisTimeStamp,C3.temp.data(:,2),'g','LineWidth',1);
     end
-    xlabel(hAxesTemp,'time [seconds]','FontSize',10);
+    %xlabel(hAxesTemp,'time [seconds]','FontSize',10);
+
+    %datetick(hAxesTemp,'x', timeFormat, 'keeplimits', 'keepticks');
 end
 
 function setRangeEdits(C3,hEditStartHH,hEditStartMM,hEditStartSS,hEditEndHH,hEditEndMM,hEditEndSS)
@@ -975,4 +1016,3 @@ function setRangeEdits(C3,hEditStartHH,hEditStartMM,hEditStartSS,hEditEndHH,hEdi
 %     display(C3.ecg.fs);
 %     display(lengthInSeconds);
 end
-

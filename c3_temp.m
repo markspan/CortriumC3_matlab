@@ -17,7 +17,7 @@ classdef c3_temp < c3_sensor
             fclose(fid);
             
             this.data = tmp_data' * 0.02 - 273.15;
-            this.samplenum = tmp_samples;
+            this.samplenum = length(this.data);
         end
     end
     

@@ -3,6 +3,9 @@ function c3_gui()
 
 %% Initialize variables
 
+global timeFormat;
+timeFormat = 'HH:MM:SS';
+
 % create new C3 object, empty until a sensor data directory has been selected
 C3 = cortrium_c3('');
 
@@ -741,6 +744,7 @@ set(hFig,'Visible','on');
         plotResp(C3,hAxesResp);
         plotAccel(C3,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox,hAccelMagnitudeCheckbox,hAccelMedfiltCheckbox);
         plotTemp(C3,hAxesTemp,hTemp1Checkbox,hTemp2Checkbox);
+        linkaxes([hAxesECG hAxesResp hAxesAccel hAxesTemp], 'x');
     end
 
     function ResetRangeFcn(varargin)
@@ -947,12 +951,16 @@ function plotECG(C3,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox)
 end
 
 function plotResp(C3,hAxesResp)
+    global timeFormat;
     %calculate total sample time (= samples / sample freq)
     sampletime = length(C3.resp.data)/C3.resp.fs;
     % create x-axis values
     xAxisTimeSeconds = linspace(0,sampletime,length(C3.resp.data));
+%     xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+% 	datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.resp.samplenum);
     cla(hAxesResp);
     plot(hAxesResp,xAxisTimeSeconds,C3.resp.data,'r','LineWidth',1);
+    %datetick(hAxesResp,'x', timeFormat, 'keeplimits', 'keepticks');
 end
 
 function plotAccel(C3,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox,hAccelMagnitudeCheckbox,hAccelMedfiltCheckbox);

@@ -3,9 +3,6 @@ function c3_gui()
 
 %% Initialize variables
 
-global timeFormat;
-timeFormat = 'HH:MM:SS';
-
 % create new C3 object, empty until a sensor data directory has been selected
 C3 = cortrium_c3('');
 
@@ -339,6 +336,8 @@ hTimeButton2 = uicontrol(hTimebaseButtonGroup,...
     'Position',[0.53,0.05,0.4,1],...
     'BackgroundColor',panelColor,...
     'HandleVisibility','off');
+% preselecting one of the radio buttons
+set(hTimebaseButtonGroup,'selectedobject',hTimeButton2) 
 
 %-----Panel: Filter Sensor Data-----%
 
@@ -700,13 +699,20 @@ set(hFig,'OuterPosition', [1 1 screenWidth screenHeight]);
 %% Make the GUI visible
 
 set(hFig,'Visible','on');
+grid(hAxesECG,'on');
+grid(hAxesResp,'on');
+grid(hAxesAccel,'on');
+grid(hAxesTemp,'on');
 
 %% Functions (inline)
 
     function loadButtonFcn()
         dirName = uigetdir();
         if dirName % if a directory was selected
-            %display(dirName);
+            % resetting axes so that any zooming is reset before displaying the new data
+            set([hAxesECG hAxesResp hAxesAccel hAxesTemp],'xlim',[0 1]);
+            set([hAxesECG hAxesResp hAxesAccel hAxesTemp],'ylim',[0 1]);
+            axis([hAxesECG hAxesResp hAxesAccel hAxesTemp],'auto');
             updateDirectoryInfo;
             loadAndFormatData;
             setRangeEdits(C3,hEditStartHH,hEditStartMM,hEditStartSS,hEditEndHH,hEditEndMM,hEditEndSS);
@@ -785,29 +791,27 @@ set(hFig,'Visible','on');
 
     function ecgWinFunc(varargin)
         %--- creates a new, floating window for the ECG plot ---%
-        %calculate total sample time (= samples / sample freq)
-        sampletime = length(C3.ecg.data)/C3.ecg.fs;
-        % create x-axis values
-        xAxisTimeSeconds = linspace(0,sampletime,length(C3.ecg.data));
+        xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+        datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.ecg.samplenum);
         hECGFig = figure('Numbertitle','off','Name','ECG');
         hAxesECGWindow = axes;
         hold on;
         % build a cell array for the plot legend, and plot according to selected checkboxes
         legendList = cell(0);
         if get(hECG1Checkbox, 'Value') == 1 % if checkbox for ECG_1 is ON
-            plot(hAxesECGWindow,xAxisTimeSeconds,C3.ecg.data(:,1),'r','LineWidth',1);
+            plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,1),'r','LineWidth',1);
             legendList(length(legendList)+1) = {'ECG\_1'};
         end
         if get(hECG2Checkbox, 'Value') == 1 % if checkbox for ECG_2 is ON
-            plot(hAxesECGWindow,xAxisTimeSeconds,C3.ecg.data(:,2),'g','LineWidth',1);
+            plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,2),'g','LineWidth',1);
             legendList(length(legendList)+1) = {'ECG\_2'};
         end
         if get(hECG3Checkbox, 'Value') == 1 % if checkbox for ECG_3 is ON
-            plot(hAxesECGWindow,xAxisTimeSeconds,C3.ecg.data(:,3),'b','LineWidth',1);
+            plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,3),'b','LineWidth',1);
             legendList(length(legendList)+1) = {'ECG\_3'};
         end
         title('ECG','FontSize',12,'FontWeight','bold');
-        xlabel('time [seconds]','FontSize',12);
+        xlabel('time','FontSize',12);
         ylabel('sample value','FontSize',12);
         legend(hAxesECGWindow,legendList,'Location','northoutside','Orientation','horizontal');
         set(hAxesECGWindow,'FontSize',11);
@@ -815,16 +819,14 @@ set(hFig,'Visible','on');
 
     function respWinFunc(varargin)
         %--- creates a new, floating window for the ECG plot ---%
-        %calculate total sample time (= samples / sample freq)
-        sampletime = length(C3.resp.data)/C3.resp.fs;
-        % create x-axis values
-        xAxisTimeSeconds = linspace(0,sampletime,length(C3.resp.data));
+        xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+        datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.resp.samplenum);
         hRespFig = figure('Numbertitle','off','Name','Respiration');
         hAxesRespWindow = axes;
         hold on;
-        plot(hAxesRespWindow,xAxisTimeSeconds,C3.resp.data,'r','LineWidth',1);
+        plot(hAxesRespWindow,xAxisTimeStamp,C3.resp.data,'r','LineWidth',1);
         title('Respiration','FontSize',12,'FontWeight','bold');
-        xlabel('time [seconds]','FontSize',12);
+        xlabel('time','FontSize',12);
         ylabel('sample value','FontSize',12);
         legend(hAxesRespWindow,'Respiration','Location','northoutside','Orientation','horizontal');
         set(hAxesRespWindow,'FontSize',11);
@@ -832,10 +834,8 @@ set(hFig,'Visible','on');
 
     function accelWinFunc(varargin)
         %--- creates a new, floating window for the Acceleration plot ---%
-        %calculate total sample time (= samples / sample freq)
-        sampletime = length(C3.accel.data)/C3.accel.fs;
-        % create x-axis values
-        xAxisTimeSeconds = linspace(0,sampletime,length(C3.accel.data));
+        xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+        datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.accel.samplenum);
         hAccelFig = figure('Numbertitle','off','Name','Acceleration');
         hAxesAccelWindow = axes;
         hold on;
@@ -843,33 +843,33 @@ set(hFig,'Visible','on');
         legendList = cell(0);
         if get(hAccelXCheckbox, 'Value') == 1 % if checkbox for Accel_X ON
             if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-                plot(hAxesAccelWindow,xAxisTimeSeconds,data_accel_medfilt(:,1),'r','LineWidth',1);
+                plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,1),'r','LineWidth',1);
             else
-                plot(hAxesAccelWindow,xAxisTimeSeconds,C3.accel.data(:,1),'r','LineWidth',1);
+                plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,1),'r','LineWidth',1);
             end
             legendList(length(legendList)+1) = {'Accel\_X'};
         end
         if get(hAccelYCheckbox, 'Value') == 1 % if checkbox for Accel_Y ON
             if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-                plot(hAxesAccelWindow,xAxisTimeSeconds,data_accel_medfilt(:,2),'g','LineWidth',1);
+                plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,2),'g','LineWidth',1);
             else
-                plot(hAxesAccelWindow,xAxisTimeSeconds,C3.accel.data(:,2),'g','LineWidth',1);
+                plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,2),'g','LineWidth',1);
             end
             legendList(length(legendList)+1) = {'Accel\_Y'};
         end
         if get(hAccelZCheckbox, 'Value') == 1 % if checkbox for Accel_Z ON
             if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-                plot(hAxesAccelWindow,xAxisTimeSeconds,data_accel_medfilt(:,3),'b','LineWidth',1);
+                plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,3),'b','LineWidth',1);
             else
-                plot(hAxesAccelWindow,xAxisTimeSeconds,C3.accel.data(:,3),'b','LineWidth',1);
+                plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,3),'b','LineWidth',1);
             end
             legendList(length(legendList)+1) = {'Accel\_Z'};
         end
         if get(hAccelMagnitudeCheckbox, 'Value') == 1 % if checkbox for magnitude ON
             if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-                plot(hAxesAccelWindow,xAxisTimeSeconds,data_accel_magnitude_medfilt,'k','LineWidth',1);
+                plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_magnitude_medfilt,'k','LineWidth',1);
             else
-                plot(hAxesAccelWindow,xAxisTimeSeconds,C3.accel.magnitude,'k','LineWidth',1);
+                plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.magnitude,'k','LineWidth',1);
             end
             legendList(length(legendList)+1) = {'magnitude'};
         end        
@@ -878,7 +878,7 @@ set(hFig,'Visible','on');
         else
             title('Acceleration','FontSize',12,'FontWeight','bold');
         end
-        xlabel('time [seconds]','FontSize',12);
+        xlabel('time','FontSize',12);
         ylabel('sample value','FontSize',12);
         legend(hAxesAccelWindow,legendList,'Location','northoutside','Orientation','horizontal');
         set(hAxesAccelWindow,'FontSize',11);
@@ -886,25 +886,23 @@ set(hFig,'Visible','on');
 
     function tempWinFunc(varargin)
         %--- creates a new, floating window for the Temperature plot ---%
-        %calculate total sample time (= samples / sample freq)
-        sampletime = length(C3.temp.data)/C3.temp.fs;
-        % create x-axis values
-        xAxisTimeSeconds = linspace(0,sampletime,length(C3.temp.data));
+        xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+        datetime(C3.date_end, 'ConvertFrom', 'datenum'),length(C3.temp.data));
         hTempFig = figure('Numbertitle','off','Name','Temperature');
         hAxesTempWindow = axes;
         hold on;
         % build a cell array for the plot legend, and plot according to selected checkboxes
         legendList = cell(0);
         if get(hTemp1Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
-            plot(hAxesTempWindow,xAxisTimeSeconds,C3.temp.data(:,1),'r','LineWidth',1);
+            plot(hAxesTempWindow,xAxisTimeStamp,C3.temp.data(:,1),'r','LineWidth',1);
             legendList(length(legendList)+1) = {'Device'};
         end
         if get(hTemp2Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
-            plot(hAxesTempWindow,xAxisTimeSeconds,C3.temp.data(:,2),'g','LineWidth',1);
+            plot(hAxesTempWindow,xAxisTimeStamp,C3.temp.data(:,2),'g','LineWidth',1);
             legendList(length(legendList)+1) = {'Surface'};
         end
         title('Temperature','FontSize',12,'FontWeight','bold');
-        xlabel('time [seconds]','FontSize',12);
+        xlabel('time','FontSize',12);
         ylabel('sample value','FontSize',12);
         legend(hAxesTempWindow,legendList,'Location','northoutside','Orientation','horizontal');
         set(hAxesTempWindow,'FontSize',11);
@@ -932,71 +930,63 @@ function plotECG(C3,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox)
     global colRed;
     global colGreen;
     global colBlue;
-
-    %calculate total sample time (= samples / sample freq)
-    sampletime = length(C3.ecg.data)/C3.ecg.fs;
-    % create x-axis values
-    xAxisTimeSeconds = linspace(0,sampletime,length(C3.ecg.data));
+    xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+    datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.ecg.samplenum);
     % clear the plot, then create new plot
     cla(hAxesECG);
     if get(hECG1Checkbox, 'Value') == 1 % if checkbox for ECG_1 is ON
-        plot(hAxesECG,xAxisTimeSeconds,C3.ecg.data(:,1),'r','LineWidth',1);
+        plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,1),'r','LineWidth',1);
     end
     if get(hECG2Checkbox, 'Value') == 1 % if checkbox for ECG_2 is ON
-        plot(hAxesECG,xAxisTimeSeconds,C3.ecg.data(:,2),'g','LineWidth',1);
+        plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,2),'g','LineWidth',1);
     end
     if get(hECG3Checkbox, 'Value') == 1 % if checkbox for ECG_3 is ON
-        plot(hAxesECG,xAxisTimeSeconds,C3.ecg.data(:,3),'b','LineWidth',1);
+        plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,3),'b','LineWidth',1);
     end
 end
 
 function plotResp(C3,hAxesResp)
-    global timeFormat;
-    %calculate total sample time (= samples / sample freq)
-    sampletime = length(C3.resp.data)/C3.resp.fs;
-    % create x-axis values
-    xAxisTimeSeconds = linspace(0,sampletime,length(C3.resp.data));
-%     xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
-% 	datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.resp.samplenum);
+    xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+    datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.resp.samplenum);
+	%xAxisTimeStamp.Format = 'HH:mm:ss';
+    %xAxisTimeStamp_HHmmss = xAxisTimeStamp;
     cla(hAxesResp);
-    plot(hAxesResp,xAxisTimeSeconds,C3.resp.data,'r','LineWidth',1);
+    plot(hAxesResp,xAxisTimeStamp,C3.resp.data,'r','LineWidth',1);
     %datetick(hAxesResp,'x', timeFormat, 'keeplimits', 'keepticks');
 end
 
-function plotAccel(C3,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox,hAccelMagnitudeCheckbox,hAccelMedfiltCheckbox);
+function plotAccel(C3,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox,hAccelMagnitudeCheckbox,hAccelMedfiltCheckbox)
     global data_accel_medfilt;
     global data_accel_magnitude_medfilt;
-    %calculate total sample time (= samples / sample freq)
-    sampletime = length(C3.accel.data)/C3.accel.fs;
-    % create x-axis values
-    xAxisTimeSeconds = linspace(0,sampletime,length(C3.accel.data));
+    xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+    datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.accel.samplenum);
     cla(hAxesAccel);
     if get(hAccelXCheckbox, 'Value') == 1 % if checkbox for Accel_X ON
         if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-            plot(hAxesAccel,xAxisTimeSeconds,data_accel_medfilt(:,1),'r','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,1),'r','LineWidth',1);
         else
-            plot(hAxesAccel,xAxisTimeSeconds,C3.accel.data(:,1),'r','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,1),'r','LineWidth',1);
         end
     end
     if get(hAccelYCheckbox, 'Value') == 1 % if checkbox for Accel_Y ON
         if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-            plot(hAxesAccel,xAxisTimeSeconds,data_accel_medfilt(:,2),'g','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,2),'g','LineWidth',1);
         else
-            plot(hAxesAccel,xAxisTimeSeconds,C3.accel.data(:,2),'g','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,2),'g','LineWidth',1);
         end
     end
     if get(hAccelZCheckbox, 'Value') == 1 % if checkbox for Accel_Z ON
         if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-            plot(hAxesAccel,xAxisTimeSeconds,data_accel_medfilt(:,3),'b','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,3),'b','LineWidth',1);
         else
-            plot(hAxesAccel,xAxisTimeSeconds,C3.accel.data(:,3),'b','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,3),'b','LineWidth',1);
         end
     end
     if get(hAccelMagnitudeCheckbox, 'Value') == 1 % if checkbox for magnitude ON
         if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-            plot(hAxesAccel,xAxisTimeSeconds,data_accel_magnitude_medfilt,'k','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,data_accel_magnitude_medfilt,'k','LineWidth',1);
         else
-            plot(hAxesAccel,xAxisTimeSeconds,C3.accel.magnitude,'k','LineWidth',1);
+            plot(hAxesAccel,xAxisTimeStamp,C3.accel.magnitude,'k','LineWidth',1);
         end
     end
 end
@@ -1005,18 +995,16 @@ function plotTemp(C3,hAxesTemp,hTemp1Checkbox,hTemp2Checkbox)
     global colRed;
     global colGreen;
     global colBlue;
-    %calculate total sample time (= samples / sample freq)
-    sampletime = length(C3.temp.data)/C3.temp.fs;
-    % create x-axis values
-    xAxisTimeSeconds = linspace(0,sampletime,length(C3.temp.data));
+    xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
+    datetime(C3.date_end, 'ConvertFrom', 'datenum'),length(C3.temp.data));
     cla(hAxesTemp);
     if get(hTemp1Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
-        plot(hAxesTemp,xAxisTimeSeconds,C3.temp.data(:,1),'r','LineWidth',1);
+        plot(hAxesTemp,xAxisTimeStamp,C3.temp.data(:,1),'r','LineWidth',1);
     end
     if get(hTemp2Checkbox, 'Value') == 1 % if checkbox for Temp_2 is ON
-        plot(hAxesTemp,xAxisTimeSeconds,C3.temp.data(:,2),'g','LineWidth',1);
+        plot(hAxesTemp,xAxisTimeStamp,C3.temp.data(:,2),'g','LineWidth',1);
     end
-    xlabel(hAxesTemp,'time [seconds]','FontSize',10);
+    xlabel(hAxesTemp,'time','FontSize',10);
 end
 
 function setRangeEdits(C3,hEditStartHH,hEditStartMM,hEditStartSS,hEditEndHH,hEditEndMM,hEditEndSS)

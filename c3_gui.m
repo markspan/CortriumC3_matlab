@@ -5,6 +5,7 @@ function c3_gui()
 
 % create new C3 object, empty until a sensor data directory has been selected
 C3 = cortrium_c3('');
+dirName = '';
 
 % Set a temporary screen resolution of 1920x1080 pixels while we construct GUI.
 % Will be modified to actual screen resolution before GUI is displayed.
@@ -14,7 +15,7 @@ screenWidth = 1920;
 screenHeight = 1080;
 
 panelColor = [0.9 0.9 0.9]; % color of panel background
-editBgColor = [1.0 1.0 1.0]; % color of text edit boxes
+editColor = [1.0 1.0 1.0]; % color of text edit boxes
 panelBorderColor = [1.0 1.0 1.0]; % color of the line between panels
 global colGreen;
 global colBlue;
@@ -23,16 +24,32 @@ colGreen = [0.0 0.85 0.0];
 colBlue = [0 0 1];
 colRed = [1 0 0];
 
+global xAxisTimeStamps;
+xAxisTimeStamps.world.ECG = 0;
+xAxisTimeStamps.duration.ECG = 0;
+xAxisTimeStamps.world.Resp = 0;
+xAxisTimeStamps.duration.Resp = 0;
+xAxisTimeStamps.world.Accel = 0;
+xAxisTimeStamps.duration.Accel = 0;
+xAxisTimeStamps.world.Temp = 0;
+xAxisTimeStamps.duration.Temp = 0;
+global timeBase;
+global timeStart;
+timeStart.world = 0;
+timeStart.duration = 0;
+global timeEnd;
+timeEnd.world = 0;
+timeEnd.duration = 0;
+global rangeStartIndex;
+rangeStartIndex = 0;
+global rangeEndIndex;
+rangeEndIndex = 0;
+
 % (CLEAN UP) global variable for median filtered Accel data
 global data_accel_medfilt;
 data_accel_medfilt = 0;
 global data_accel_magnitude_medfilt;
 data_accel_magnitude_medfilt = 0;
-
-dirName = '';
-pathAndFile = '';
-participantId = '';
-testNumber = 0;
 
 plotDefaultRangeX = 6000; % 6000 samples = one minute
 plotRangeX = plotDefaultRangeX;
@@ -63,7 +80,7 @@ hPanelMain = uipanel('BorderType','none',...
 % create a panel for "Load Sensor Data" button
 hPanelLoad = uipanel('Parent',hPanelMain,...
     'Title','Load Sensor Data',...
-    'BorderType','line',... % 'BackgroundColor',editBgColor,...
+    'BorderType','line',... % 'BackgroundColor',editColor,...
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
     'Position',[0.84 0.89 0.15 0.1],...
@@ -81,16 +98,16 @@ uicontrol('Parent',hPanelLoad,...
 %-----Panel: Directory Info-----%
 
 % create a panel for directory (folder) info
-hPanelParticipant = uipanel('Parent',hPanelMain,...
+hPanelDirInfo = uipanel('Parent',hPanelMain,...
     'Title','Directory Info',...
-    'BorderType','line',... % 'BackgroundColor',editBgColor,...
+    'BorderType','line',... % 'BackgroundColor',editColor,...
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
     'Position',[0.84 0.77 0.15 0.11],...
     'BackgroundColor',panelColor);
 
 % Text, directory info
-hTextDirInfo = uicontrol('Parent',hPanelParticipant,...
+hTextDirInfo = uicontrol('Parent',hPanelDirInfo,...
     'Style','text',...
     'Units','normalized',...
     'Position',[0.05,0.05,0.9,0.85],...
@@ -120,169 +137,71 @@ uicontrol('Parent',hPanelNavigateData,...
     'FontSize',12,...
     'Callback',@ResetRangeFcn);
 
-% Text label, colons between HH MM SS
+% Text label, Start
 uicontrol('Parent',hPanelNavigateData,...
     'Style','text',...
     'Units','normalized',...
-    'Position',[0.14,0.73,0.03,0.07],...
-    'HorizontalAlignment','center',...
-    'String',':',...
+    'Position',[0.05,0.73,0.16,0.07],...
+    'HorizontalAlignment','left',...
+    'String','Start:',...
     'FontSize',10,...
     'BackgroundColor',panelColor);
+
+% Text label, End
 uicontrol('Parent',hPanelNavigateData,...
     'Style','text',...
     'Units','normalized',...
-    'Position',[0.26,0.73,0.03,0.07],...
-    'HorizontalAlignment','center',...
-    'String',':',...
+    'Position',[0.05,0.65,0.16,0.07],...
+    'HorizontalAlignment','left',...
+    'String','End:',...
     'FontSize',10,...
     'BackgroundColor',panelColor);
-uicontrol('Parent',hPanelNavigateData,...
+
+% % Text label, range start time
+% uicontrol('Parent',hPanelNavigateData,...
+%     'Style','text',...
+%     'Units','normalized',...
+%     'Position',[0.2,0.68,0.75,0.05],...
+%     'HorizontalAlignment','right',...
+%     'String','yyyy-mm-dd HH:MM:SS',...
+%     'FontSize',8,...
+%     'ForegroundColor',editColor*0.5,...
+%     'BackgroundColor',panelColor);
+% 
+% % Text label, range end time
+% uicontrol('Parent',hPanelNavigateData,...
+%     'Style','text',...
+%     'Units','normalized',...
+%     'Position',[0.2,0.55,0.75,0.05],...
+%     'HorizontalAlignment','right',...
+%     'String','yyyy-mm-dd HH:MM:SS',...
+%     'FontSize',8,...
+%     'ForegroundColor',editColor*0.5,...
+%     'BackgroundColor',panelColor);
+
+% Text, display range start time
+hEditStartTime = uicontrol('Parent',hPanelNavigateData,...
     'Style','text',...
     'Units','normalized',...
-    'Position',[0.71,0.73,0.03,0.07],...
-    'HorizontalAlignment','center',...
-    'String',':',...
+    'Position',[0.21,0.73,0.74,0.07],...
+    'HorizontalAlignment','left',...
     'FontSize',10,...
     'BackgroundColor',panelColor);
-uicontrol('Parent',hPanelNavigateData,...
+
+% Text, display range end time
+hEditEndTime = uicontrol('Parent',hPanelNavigateData,...
     'Style','text',...
     'Units','normalized',...
-    'Position',[0.83,0.73,0.03,0.07],...
-    'HorizontalAlignment','center',...
-    'String',':',...
+    'Position',[0.21,0.65,0.74,0.07],...
+    'HorizontalAlignment','left',...
     'FontSize',10,...
     'BackgroundColor',panelColor);
-
-% Text label, display range start HH
-uicontrol('Parent',hPanelNavigateData,...
-    'Style','text',...
-    'Units','normalized',...
-    'Position',[0.05,0.68,0.09,0.05],...
-    'HorizontalAlignment','center',...
-    'String','HH',...
-    'FontSize',8,...
-    'BackgroundColor',panelColor);
-
-% Text label, display range start MM
-uicontrol('Parent',hPanelNavigateData,...
-    'Style','text',...
-    'Units','normalized',...
-    'Position',[0.17,0.68,0.09,0.05],...
-    'HorizontalAlignment','center',...
-    'String','MM',...
-    'FontSize',8,...
-    'BackgroundColor',panelColor);
-
-% Text label, display range start SS
-uicontrol('Parent',hPanelNavigateData,...
-    'Style','text',...
-    'Units','normalized',...
-    'Position',[0.29,0.68,0.09,0.05],...
-    'HorizontalAlignment','center',...
-    'String','SS',...
-    'FontSize',8,...
-    'BackgroundColor',panelColor);
-
-% Text label, display range end HH
-uicontrol('Parent',hPanelNavigateData,...
-    'Style','text',...
-    'Units','normalized',...
-    'Position',[0.62,0.68,0.09,0.05],...
-    'HorizontalAlignment','center',...
-    'String','HH',...
-    'FontSize',8,...
-    'BackgroundColor',panelColor);
-
-% Text label, display range end MM
-uicontrol('Parent',hPanelNavigateData,...
-    'Style','text',...
-    'Units','normalized',...
-    'Position',[0.74,0.68,0.09,0.05],...
-    'HorizontalAlignment','center',...
-    'String','MM',...
-    'FontSize',8,...
-    'BackgroundColor',panelColor);
-
-% Text label, display range end SS
-uicontrol('Parent',hPanelNavigateData,...
-    'Style','text',...
-    'Units','normalized',...
-    'Position',[0.86,0.68,0.09,0.05],...
-    'HorizontalAlignment','center',...
-    'String','SS',...
-    'FontSize',8,...
-    'BackgroundColor',panelColor);
-
-% Text edit, display range start HH
-hEditStartHH = uicontrol('Parent',hPanelNavigateData,...
-    'Style','edit',...
-    'Units','normalized',...
-    'Position',[0.05,0.73,0.09,0.07],...
-    'HorizontalAlignment','center',...
-    'FontSize',10,...
-    'BackgroundColor',editBgColor);
-
-% Text edit, display range start MM
-hEditStartMM = uicontrol('Parent',hPanelNavigateData,...
-    'Style','edit',...
-    'Units','normalized',...
-    'Position',[0.17,0.73,0.09,0.07],...
-    'HorizontalAlignment','center',...
-    'FontSize',10,...
-    'BackgroundColor',editBgColor);
-
-% Text edit, display range start SS
-hEditStartSS = uicontrol('Parent',hPanelNavigateData,...
-    'Style','edit',...
-    'Units','normalized',...
-    'Position',[0.29,0.73,0.09,0.07],...
-    'HorizontalAlignment','center',...
-    'FontSize',10,...
-    'BackgroundColor',editBgColor);
-
-% Text label, display range dash
-uicontrol('Parent',hPanelNavigateData,...
-    'Style','text',...
-    'Units','normalized',...
-    'Position',[0.45,0.73,0.1,0.07],...
-    'HorizontalAlignment','center',...
-    'String','--',...
-    'FontSize',10,...
-    'BackgroundColor',panelColor);
-
-% Text edit, display range end HH
-hEditEndHH = uicontrol('Parent',hPanelNavigateData,...
-    'Style','edit',...
-    'Units','normalized',...
-    'Position',[0.62,0.73,0.09,0.07],...
-    'HorizontalAlignment','center',...
-    'FontSize',10,...
-    'BackgroundColor',editBgColor);
-
-% Text edit, display range end MM
-hEditEndMM = uicontrol('Parent',hPanelNavigateData,...
-    'Style','edit',...
-    'Units','normalized',...
-    'Position',[0.74,0.73,0.09,0.07],...
-    'HorizontalAlignment','center',...
-    'FontSize',10,...
-    'BackgroundColor',editBgColor);
-
-% Text edit, display range end SS
-hEditEndSS = uicontrol('Parent',hPanelNavigateData,...
-    'Style','edit',...
-    'Units','normalized',...
-    'Position',[0.86,0.73,0.09,0.07],...
-    'HorizontalAlignment','center',...
-    'FontSize',10,...
-    'BackgroundColor',editBgColor);
 
 hRangeSlider = uicontrol('Parent',hPanelNavigateData,...
     'Style','slider',...
     'Enable','off',...
     'Units','normalized',...
-    'Position',[0.05,0.59,0.9,0.08],...
+    'Position',[0.05,0.55,0.9,0.08],...
     'Min',0,'Max',20000,...
     'Value',plotRangeX,...
     'SliderStep',[0.005 0.05],...
@@ -309,7 +228,7 @@ hFirst10SecButton = uicontrol('Parent',hPanelNavigateData,...
     'FontSize',10);
     %'Callback',@First10SecFcn);
     
-% Radio buttons group, zero-based time vs. world time
+% Radio buttons group, duration-based time vs. world time
 hTimebaseButtonGroup = uibuttongroup('Parent',hPanelNavigateData,...
     'Units','normalized',...
     'Position',[0.05,0.05,0.9,0.12],...
@@ -320,8 +239,8 @@ hTimebaseButtonGroup = uibuttongroup('Parent',hPanelNavigateData,...
 % Radio button, zero based time
 hTimeButton1 = uicontrol(hTimebaseButtonGroup,...
     'Style','radiobutton',...
-    'Enable','off',...
-    'String','Zero',...
+    'Enable','on',...
+    'String','Duration',...
     'Units','normalized',...
     'Position',[0.02,0.05,0.4,1],...
     'BackgroundColor',panelColor,...
@@ -330,14 +249,15 @@ hTimeButton1 = uicontrol(hTimebaseButtonGroup,...
 % Radio button, world based time
 hTimeButton2 = uicontrol(hTimebaseButtonGroup,...
     'Style','radiobutton',...
-    'Enable','off',...
+    'Enable','on',...
     'String','World',...
     'Units','normalized',...
     'Position',[0.53,0.05,0.4,1],...
     'BackgroundColor',panelColor,...
     'HandleVisibility','off');
 % preselecting one of the radio buttons
-set(hTimebaseButtonGroup,'selectedobject',hTimeButton2) 
+set(hTimebaseButtonGroup,'selectedobject',hTimeButton2);
+timeBase = get(get(hTimebaseButtonGroup,'selectedobject'),'String');
 
 %-----Panel: Filter Sensor Data-----%
 
@@ -715,7 +635,8 @@ grid(hAxesTemp,'on');
             axis([hAxesECG hAxesResp hAxesAccel hAxesTemp],'auto');
             updateDirectoryInfo;
             loadAndFormatData;
-            setRangeEdits(C3,hEditStartHH,hEditStartMM,hEditStartSS,hEditEndHH,hEditEndMM,hEditEndSS);
+            calcTimeStamps(C3);
+            setRange(C3,rangeStartIndex,rangeEndIndex,hEditStartTime,hEditEndTime);
             plotSensorData;
         end
     end
@@ -746,6 +667,7 @@ grid(hAxesTemp,'on');
     end
 
     function plotSensorData()
+        linkaxes([hAxesECG hAxesResp hAxesAccel hAxesTemp], 'off');
         plotECG(C3,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox)
         plotResp(C3,hAxesResp);
         plotAccel(C3,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox,hAccelMagnitudeCheckbox,hAccelMedfiltCheckbox);
@@ -762,12 +684,27 @@ grid(hAxesTemp,'on');
     end
 
     function timebaseSelectionFcn(varargin)
-        
+        % For now we just plot the data again, and let the plot functions
+        % ask for the x-axis data. Would be more optimal to just replace
+        % x-axis ticks.
+        timeBase = get(get(hTimebaseButtonGroup,'selectedobject'),'String');
+        %if the C3 object is not empty
+        if ~isempty(C3.date_start)
+            if strcmp(timeBase,'World')
+                rangeStartIndex = timeStart.world;
+                rangeEndIndex = timeEnd.world;
+            else
+                rangeStartIndex = timeStart.duration;
+                rangeEndIndex = timeEnd.duration;
+            end
+            setRange(C3,rangeStartIndex,rangeEndIndex,hEditStartTime,hEditEndTime);
+            plotSensorData;
+        end
     end
 
     function updateDirectoryInfo()
         dirNameParts = strsplit(dirName,filesep);
-        set(hTextDirInfo,'String',dirNameParts(length(dirNameParts)));
+        set(hTextDirInfo,'String',strcat('..', filesep, dirNameParts(length(dirNameParts)-2), filesep, dirNameParts(length(dirNameParts)-1), filesep, dirNameParts(length(dirNameParts))));
     end
 
 %% Functions for updating plots, based on checkbox selections
@@ -784,6 +721,10 @@ grid(hAxesTemp,'on');
     end
 
     function tempPlotFunc(varargin)
+%         yLimits = get(hAxesTemp,'YLim');
+%         xLimits = get(hAxesTemp,'XLim');
+%         fprintf('ylimits %f  %f\n', yLimits(1), yLimits(2));
+%         fprintf('xlimits %f  %f\n', xLimits(1), xLimits(2));
         plotTemp(C3,hAxesTemp,hTemp1Checkbox,hTemp2Checkbox);
     end
 
@@ -791,27 +732,42 @@ grid(hAxesTemp,'on');
 
     function ecgWinFunc(varargin)
         %--- creates a new, floating window for the ECG plot ---%
-        xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
-        datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.ecg.samplenum);
+        xAxisTimeStamp = getTimeStamps('ECG');
+        plotOptions = getPlotOptions;
         hECGFig = figure('Numbertitle','off','Name','ECG');
         hAxesECGWindow = axes;
         hold on;
         % build a cell array for the plot legend, and plot according to selected checkboxes
         legendList = cell(0);
-        if get(hECG1Checkbox, 'Value') == 1 % if checkbox for ECG_1 is ON
-            plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,1),'r','LineWidth',1);
-            legendList(length(legendList)+1) = {'ECG\_1'};
-        end
-        if get(hECG2Checkbox, 'Value') == 1 % if checkbox for ECG_2 is ON
-            plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,2),'g','LineWidth',1);
-            legendList(length(legendList)+1) = {'ECG\_2'};
-        end
-        if get(hECG3Checkbox, 'Value') == 1 % if checkbox for ECG_3 is ON
-            plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,3),'b','LineWidth',1);
-            legendList(length(legendList)+1) = {'ECG\_3'};
+        if strcmp(timeBase,'World')
+            if get(hECG1Checkbox, 'Value') == 1 % if checkbox for ECG_1 is ON
+                plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,1),'Color','r',plotOptions);
+                legendList(length(legendList)+1) = {'ECG\_1'};
+            end
+            if get(hECG2Checkbox, 'Value') == 1 % if checkbox for ECG_2 is ON
+                plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,2),'Color','g',plotOptions);
+                legendList(length(legendList)+1) = {'ECG\_2'};
+            end
+            if get(hECG3Checkbox, 'Value') == 1 % if checkbox for ECG_3 is ON
+                plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,3),'Color','b',plotOptions);
+                legendList(length(legendList)+1) = {'ECG\_3'};
+            end
+        else
+            if get(hECG1Checkbox, 'Value') == 1 % if checkbox for ECG_1 is ON
+                plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,1),'Color','r','DurationTickFormat','hh:mm:ss',plotOptions);
+                legendList(length(legendList)+1) = {'ECG\_1'};
+            end
+            if get(hECG2Checkbox, 'Value') == 1 % if checkbox for ECG_2 is ON
+                plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,2),'Color','g','DurationTickFormat','hh:mm:ss',plotOptions);
+                legendList(length(legendList)+1) = {'ECG\_2'};
+            end
+            if get(hECG3Checkbox, 'Value') == 1 % if checkbox for ECG_3 is ON
+                plot(hAxesECGWindow,xAxisTimeStamp,C3.ecg.data(:,3),'Color','b','DurationTickFormat','hh:mm:ss',plotOptions);
+                legendList(length(legendList)+1) = {'ECG\_3'};
+            end
         end
         title('ECG','FontSize',12,'FontWeight','bold');
-        xlabel('time','FontSize',12);
+        xlabel(['time (' timeBase ')'],'FontSize',12);
         ylabel('sample value','FontSize',12);
         legend(hAxesECGWindow,legendList,'Location','northoutside','Orientation','horizontal');
         set(hAxesECGWindow,'FontSize',11);
@@ -819,14 +775,18 @@ grid(hAxesTemp,'on');
 
     function respWinFunc(varargin)
         %--- creates a new, floating window for the ECG plot ---%
-        xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
-        datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.resp.samplenum);
+        xAxisTimeStamp = getTimeStamps('Resp');
+        plotOptions = getPlotOptions;
         hRespFig = figure('Numbertitle','off','Name','Respiration');
         hAxesRespWindow = axes;
         hold on;
-        plot(hAxesRespWindow,xAxisTimeStamp,C3.resp.data,'r','LineWidth',1);
+        if strcmp(timeBase,'World')
+            plot(hAxesRespWindow,xAxisTimeStamp,C3.resp.data,'Color','r',plotOptions);
+        else
+            plot(hAxesRespWindow,xAxisTimeStamp,C3.resp.data,'Color','r','DurationTickFormat','hh:mm:ss',plotOptions);
+        end
         title('Respiration','FontSize',12,'FontWeight','bold');
-        xlabel('time','FontSize',12);
+        xlabel(['time (' timeBase ')'],'FontSize',12);
         ylabel('sample value','FontSize',12);
         legend(hAxesRespWindow,'Respiration','Location','northoutside','Orientation','horizontal');
         set(hAxesRespWindow,'FontSize',11);
@@ -834,51 +794,86 @@ grid(hAxesTemp,'on');
 
     function accelWinFunc(varargin)
         %--- creates a new, floating window for the Acceleration plot ---%
-        xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
-        datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.accel.samplenum);
+        xAxisTimeStamp = getTimeStamps('Accel');
+        plotOptions = getPlotOptions;
         hAccelFig = figure('Numbertitle','off','Name','Acceleration');
         hAxesAccelWindow = axes;
         hold on;
         % build a cell array for the plot legend, and plot according to selected checkboxes
         legendList = cell(0);
-        if get(hAccelXCheckbox, 'Value') == 1 % if checkbox for Accel_X ON
-            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-                plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,1),'r','LineWidth',1);
-            else
-                plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,1),'r','LineWidth',1);
+        if strcmp(timeBase,'World')
+            if get(hAccelXCheckbox, 'Value') == 1 % if checkbox for Accel_X ON
+                if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                    plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,1),'Color','r',plotOptions);
+                else
+                    plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,1),'Color','r',plotOptions);
+                end
+                legendList(length(legendList)+1) = {'Accel\_X'};
             end
-            legendList(length(legendList)+1) = {'Accel\_X'};
+            if get(hAccelYCheckbox, 'Value') == 1 % if checkbox for Accel_Y ON
+                if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                    plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,2),'Color','g',plotOptions);
+                else
+                    plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,2),'Color','g',plotOptions);
+                end
+                legendList(length(legendList)+1) = {'Accel\_Y'};
+            end
+            if get(hAccelZCheckbox, 'Value') == 1 % if checkbox for Accel_Z ON
+                if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                    plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,3),'Color','b',plotOptions);
+                else
+                    plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,3),'Color','b',plotOptions);
+                end
+                legendList(length(legendList)+1) = {'Accel\_Z'};
+            end
+            if get(hAccelMagnitudeCheckbox, 'Value') == 1 % if checkbox for magnitude ON
+                if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                    plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_magnitude_medfilt,'Color','k',plotOptions);
+                else
+                    plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.magnitude,'Color','k',plotOptions);
+                end
+                legendList(length(legendList)+1) = {'magnitude'};
+            end
+        else
+            if get(hAccelXCheckbox, 'Value') == 1 % if checkbox for Accel_X ON
+                if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                    plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,1),'Color','r','DurationTickFormat','hh:mm:ss',plotOptions);
+                else
+                    plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,1),'Color','r','DurationTickFormat','hh:mm:ss',plotOptions);
+                end
+                legendList(length(legendList)+1) = {'Accel\_X'};
+            end
+            if get(hAccelYCheckbox, 'Value') == 1 % if checkbox for Accel_Y ON
+                if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                    plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,2),'Color','g','DurationTickFormat','hh:mm:ss',plotOptions);
+                else
+                    plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,2),'Color','g','DurationTickFormat','hh:mm:ss',plotOptions);
+                end
+                legendList(length(legendList)+1) = {'Accel\_Y'};
+            end
+            if get(hAccelZCheckbox, 'Value') == 1 % if checkbox for Accel_Z ON
+                if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                    plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,3),'Color','b','DurationTickFormat','hh:mm:ss',plotOptions);
+                else
+                    plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,3),'Color','b','DurationTickFormat','hh:mm:ss',plotOptions);
+                end
+                legendList(length(legendList)+1) = {'Accel\_Z'};
+            end
+            if get(hAccelMagnitudeCheckbox, 'Value') == 1 % if checkbox for magnitude ON
+                if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                    plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_magnitude_medfilt,'Color','k','DurationTickFormat','hh:mm:ss',plotOptions);
+                else
+                    plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.magnitude,'Color','k','DurationTickFormat','hh:mm:ss',plotOptions);
+                end
+                legendList(length(legendList)+1) = {'magnitude'};
+            end
         end
-        if get(hAccelYCheckbox, 'Value') == 1 % if checkbox for Accel_Y ON
-            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-                plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,2),'g','LineWidth',1);
-            else
-                plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,2),'g','LineWidth',1);
-            end
-            legendList(length(legendList)+1) = {'Accel\_Y'};
-        end
-        if get(hAccelZCheckbox, 'Value') == 1 % if checkbox for Accel_Z ON
-            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-                plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_medfilt(:,3),'b','LineWidth',1);
-            else
-                plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.data(:,3),'b','LineWidth',1);
-            end
-            legendList(length(legendList)+1) = {'Accel\_Z'};
-        end
-        if get(hAccelMagnitudeCheckbox, 'Value') == 1 % if checkbox for magnitude ON
-            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-                plot(hAxesAccelWindow,xAxisTimeStamp,data_accel_magnitude_medfilt,'k','LineWidth',1);
-            else
-                plot(hAxesAccelWindow,xAxisTimeStamp,C3.accel.magnitude,'k','LineWidth',1);
-            end
-            legendList(length(legendList)+1) = {'magnitude'};
-        end        
         if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON, include 'median filtered' in title
             title('Acceleration, median filtered','FontSize',12,'FontWeight','bold');
         else
             title('Acceleration','FontSize',12,'FontWeight','bold');
         end
-        xlabel('time','FontSize',12);
+        xlabel(['time (' timeBase ')'],'FontSize',12);
         ylabel('sample value','FontSize',12);
         legend(hAxesAccelWindow,legendList,'Location','northoutside','Orientation','horizontal');
         set(hAxesAccelWindow,'FontSize',11);
@@ -886,30 +881,41 @@ grid(hAxesTemp,'on');
 
     function tempWinFunc(varargin)
         %--- creates a new, floating window for the Temperature plot ---%
-        xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
-        datetime(C3.date_end, 'ConvertFrom', 'datenum'),length(C3.temp.data));
+        xAxisTimeStamp = getTimeStamps('Temp');
+        plotOptions = getPlotOptions;
         hTempFig = figure('Numbertitle','off','Name','Temperature');
         hAxesTempWindow = axes;
         hold on;
         % build a cell array for the plot legend, and plot according to selected checkboxes
         legendList = cell(0);
-        if get(hTemp1Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
-            plot(hAxesTempWindow,xAxisTimeStamp,C3.temp.data(:,1),'r','LineWidth',1);
-            legendList(length(legendList)+1) = {'Device'};
-        end
-        if get(hTemp2Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
-            plot(hAxesTempWindow,xAxisTimeStamp,C3.temp.data(:,2),'g','LineWidth',1);
-            legendList(length(legendList)+1) = {'Surface'};
+        if strcmp(timeBase,'World')
+            if get(hTemp1Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
+                plot(hAxesTempWindow,xAxisTimeStamp,C3.temp.data(:,1),'Color','r',plotOptions);
+                legendList(length(legendList)+1) = {'Device'};
+            end
+            if get(hTemp2Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
+                plot(hAxesTempWindow,xAxisTimeStamp,C3.temp.data(:,2),'Color','g',plotOptions);
+                legendList(length(legendList)+1) = {'Surface'};
+            end
+        else
+            if get(hTemp1Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
+                plot(hAxesTempWindow,xAxisTimeStamp,C3.temp.data(:,1),'Color','r','DurationTickFormat','hh:mm:ss',plotOptions);
+                legendList(length(legendList)+1) = {'Device'};
+            end
+            if get(hTemp2Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
+                plot(hAxesTempWindow,xAxisTimeStamp,C3.temp.data(:,2),'Color','g','DurationTickFormat','hh:mm:ss',plotOptions);
+                legendList(length(legendList)+1) = {'Surface'};
+            end
         end
         title('Temperature','FontSize',12,'FontWeight','bold');
-        xlabel('time','FontSize',12);
+        xlabel(['time (' timeBase ')'],'FontSize',12);
         ylabel('sample value','FontSize',12);
         legend(hAxesTempWindow,legendList,'Location','northoutside','Orientation','horizontal');
         set(hAxesTempWindow,'FontSize',11);
     end
 
     function resizeFcn(varargin)
-        % Is called when the figure window is created, and when resized.
+        % Is called when the GUI window is created, and when resized.
         % Might be used later to implement changing font size depending on
         % GUI window size, since all other elements are relatively sized.
         currFigPos = get(hFig,'Position');
@@ -930,98 +936,243 @@ function plotECG(C3,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox)
     global colRed;
     global colGreen;
     global colBlue;
-    xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
-    datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.ecg.samplenum);
+    global timeBase;
+    xAxisTimeStamp = getTimeStamps('ECG');
+    plotOptions = getPlotOptions;
     % clear the plot, then create new plot
     cla(hAxesECG);
-    if get(hECG1Checkbox, 'Value') == 1 % if checkbox for ECG_1 is ON
-        plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,1),'r','LineWidth',1);
+    if strcmp(timeBase,'World')
+        if get(hECG1Checkbox, 'Value') == 1 % if checkbox for ECG_1 is ON
+            plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,1),'Color','r',plotOptions);
+        end
+        if get(hECG2Checkbox, 'Value') == 1 % if checkbox for ECG_2 is ON
+            plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,2),'Color','g',plotOptions);
+        end
+        if get(hECG3Checkbox, 'Value') == 1 % if checkbox for ECG_3 is ON
+            plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,3),'Color','b',plotOptions);
+        end
+    else
+        if get(hECG1Checkbox, 'Value') == 1 % if checkbox for ECG_1 is ON
+            plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,1),'Color','r','DurationTickFormat','hh:mm:ss',plotOptions);
+        end
+        if get(hECG2Checkbox, 'Value') == 1 % if checkbox for ECG_2 is ON
+            plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,2),'Color','g','DurationTickFormat','hh:mm:ss',plotOptions);
+        end
+        if get(hECG3Checkbox, 'Value') == 1 % if checkbox for ECG_3 is ON
+            plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,3),'Color','b','DurationTickFormat','hh:mm:ss',plotOptions);
+        end
     end
-    if get(hECG2Checkbox, 'Value') == 1 % if checkbox for ECG_2 is ON
-        plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,2),'g','LineWidth',1);
-    end
-    if get(hECG3Checkbox, 'Value') == 1 % if checkbox for ECG_3 is ON
-        plot(hAxesECG,xAxisTimeStamp,C3.ecg.data(:,3),'b','LineWidth',1);
-    end
+%     xlim('manual');
+%     xlim(hAxesECG,[0.000012,0.000116]);
 end
 
 function plotResp(C3,hAxesResp)
-    xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
-    datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.resp.samplenum);
-	%xAxisTimeStamp.Format = 'HH:mm:ss';
-    %xAxisTimeStamp_HHmmss = xAxisTimeStamp;
+    global timeBase;
+    xAxisTimeStamp = getTimeStamps('Resp');
+    plotOptions = getPlotOptions;
     cla(hAxesResp);
-    plot(hAxesResp,xAxisTimeStamp,C3.resp.data,'r','LineWidth',1);
-    %datetick(hAxesResp,'x', timeFormat, 'keeplimits', 'keepticks');
+    if strcmp(timeBase,'World')
+        plot(hAxesResp,xAxisTimeStamp,C3.resp.data,'Color','r',plotOptions);
+    else
+        plot(hAxesResp,xAxisTimeStamp,C3.resp.data,'Color','r','DurationTickFormat','hh:mm:ss',plotOptions);
+    end
+%     xlim('manual');
+%     xlim(hAxesECG,[0.000012,0.000116]);
+
 end
 
 function plotAccel(C3,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox,hAccelMagnitudeCheckbox,hAccelMedfiltCheckbox)
     global data_accel_medfilt;
     global data_accel_magnitude_medfilt;
-    xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
-    datetime(C3.date_end, 'ConvertFrom', 'datenum'),C3.accel.samplenum);
+    global timeBase;
+    xAxisTimeStamp = getTimeStamps('Accel');
+    plotOptions = getPlotOptions;
     cla(hAxesAccel);
-    if get(hAccelXCheckbox, 'Value') == 1 % if checkbox for Accel_X ON
-        if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-            plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,1),'r','LineWidth',1);
-        else
-            plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,1),'r','LineWidth',1);
+    if strcmp(timeBase,'World')
+        if get(hAccelXCheckbox, 'Value') == 1 % if checkbox for Accel_X ON
+            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,1),'Color','r',plotOptions);
+            else
+                plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,1),'Color','r',plotOptions);
+            end
+        end
+        if get(hAccelYCheckbox, 'Value') == 1 % if checkbox for Accel_Y ON
+            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,2),'Color','g',plotOptions);
+            else
+                plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,2),'Color','g',plotOptions);
+            end
+        end
+        if get(hAccelZCheckbox, 'Value') == 1 % if checkbox for Accel_Z ON
+            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,3),'Color','b',plotOptions);
+            else
+                plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,3),'Color','b',plotOptions);
+            end
+        end
+        if get(hAccelMagnitudeCheckbox, 'Value') == 1 % if checkbox for magnitude ON
+            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                plot(hAxesAccel,xAxisTimeStamp,data_accel_magnitude_medfilt,'Color','k',plotOptions);
+            else
+                plot(hAxesAccel,xAxisTimeStamp,C3.accel.magnitude,'Color','k',plotOptions);
+            end
+        end
+    else
+        if get(hAccelXCheckbox, 'Value') == 1 % if checkbox for Accel_X ON
+            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,1),'Color','r','DurationTickFormat','hh:mm:ss',plotOptions);
+            else
+                plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,1),'Color','r','DurationTickFormat','hh:mm:ss',plotOptions);
+            end
+        end
+        if get(hAccelYCheckbox, 'Value') == 1 % if checkbox for Accel_Y ON
+            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,2),'Color','g','DurationTickFormat','hh:mm:ss',plotOptions);
+            else
+                plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,2),'Color','g','DurationTickFormat','hh:mm:ss',plotOptions);
+            end
+        end
+        if get(hAccelZCheckbox, 'Value') == 1 % if checkbox for Accel_Z ON
+            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,3),'Color','b','DurationTickFormat','hh:mm:ss',plotOptions);
+            else
+                plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,3),'Color','b','DurationTickFormat','hh:mm:ss',plotOptions);
+            end
+        end
+        if get(hAccelMagnitudeCheckbox, 'Value') == 1 % if checkbox for magnitude ON
+            if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
+                plot(hAxesAccel,xAxisTimeStamp,data_accel_magnitude_medfilt,'Color','k','DurationTickFormat','hh:mm:ss',plotOptions);
+            else
+                plot(hAxesAccel,xAxisTimeStamp,C3.accel.magnitude,'Color','k','DurationTickFormat','hh:mm:ss',plotOptions);
+            end
         end
     end
-    if get(hAccelYCheckbox, 'Value') == 1 % if checkbox for Accel_Y ON
-        if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-            plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,2),'g','LineWidth',1);
-        else
-            plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,2),'g','LineWidth',1);
-        end
-    end
-    if get(hAccelZCheckbox, 'Value') == 1 % if checkbox for Accel_Z ON
-        if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-            plot(hAxesAccel,xAxisTimeStamp,data_accel_medfilt(:,3),'b','LineWidth',1);
-        else
-            plot(hAxesAccel,xAxisTimeStamp,C3.accel.data(:,3),'b','LineWidth',1);
-        end
-    end
-    if get(hAccelMagnitudeCheckbox, 'Value') == 1 % if checkbox for magnitude ON
-        if get(hAccelMedfiltCheckbox, 'Value') == 1 % if checkbox for Medfilt ON
-            plot(hAxesAccel,xAxisTimeStamp,data_accel_magnitude_medfilt,'k','LineWidth',1);
-        else
-            plot(hAxesAccel,xAxisTimeStamp,C3.accel.magnitude,'k','LineWidth',1);
-        end
-    end
+%     xlim('manual');
+%     xlim(hAxesAccel,[0.000012,0.000116]);
 end
 
 function plotTemp(C3,hAxesTemp,hTemp1Checkbox,hTemp2Checkbox)
     global colRed;
     global colGreen;
     global colBlue;
-    xAxisTimeStamp = linspace(datetime(C3.date_start, 'ConvertFrom', 'datenum'),...
-    datetime(C3.date_end, 'ConvertFrom', 'datenum'),length(C3.temp.data));
+    global timeBase;
+    xAxisTimeStamp = getTimeStamps('Temp');
+    plotOptions = getPlotOptions;
     cla(hAxesTemp);
-    if get(hTemp1Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
-        plot(hAxesTemp,xAxisTimeStamp,C3.temp.data(:,1),'r','LineWidth',1);
+    if strcmp(timeBase,'World')
+        if get(hTemp1Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
+            plot(hAxesTemp,xAxisTimeStamp,C3.temp.data(:,1),'Color','r',plotOptions);
+        end
+        if get(hTemp2Checkbox, 'Value') == 1 % if checkbox for Temp_2 is ON
+            plot(hAxesTemp,xAxisTimeStamp,C3.temp.data(:,2),'Color','g',plotOptions);
+        end
+    else
+        if get(hTemp1Checkbox, 'Value') == 1 % if checkbox for Temp_1 is ON
+            plot(hAxesTemp,xAxisTimeStamp,C3.temp.data(:,1),'Color','r','DurationTickFormat','hh:mm:ss',plotOptions);
+        end
+        if get(hTemp2Checkbox, 'Value') == 1 % if checkbox for Temp_2 is ON
+            plot(hAxesTemp,xAxisTimeStamp,C3.temp.data(:,2),'Color','g','DurationTickFormat','hh:mm:ss',plotOptions);
+        end
     end
-    if get(hTemp2Checkbox, 'Value') == 1 % if checkbox for Temp_2 is ON
-        plot(hAxesTemp,xAxisTimeStamp,C3.temp.data(:,2),'g','LineWidth',1);
-    end
-    xlabel(hAxesTemp,'time','FontSize',10);
+    xlabel(hAxesTemp,['time (' timeBase ')'],'FontSize',10);
+    %display(get(hAxesTemp,'XTick'));
+%     xlim('manual');
+%     xlim(hAxesTemp,[0.000012,0.000116]);
 end
 
-function setRangeEdits(C3,hEditStartHH,hEditStartMM,hEditStartSS,hEditEndHH,hEditEndMM,hEditEndSS)
-    % Right now this only shows the total length (in HH:MM:SS) of the
-    % dataset when loaded. Later this will handle updating the time range
-    % when browsing through the data.
-    set(hEditStartHH,'String','00');
-    set(hEditStartMM,'String','00');
-    set(hEditStartSS,'String','00');
-    lengthInSeconds = length(C3.ecg.data)/C3.ecg.fs;
-    lengthHHMMSS = datestr(lengthInSeconds/24/3600, 'HH:MM:SS');
-    set(hEditEndHH,'String',lengthHHMMSS(1:2));
-    set(hEditEndMM,'String',lengthHHMMSS(4:5));
-    set(hEditEndSS,'String',lengthHHMMSS(7:8));
-    %DEBUG
-%     display(length(C3.ecg.data));
-%     display(C3.ecg.fs);
-%     display(lengthInSeconds);
+function calcTimeStamps(C3)
+    global xAxisTimeStamps;
+    global timeBase;
+    global timeStart;
+    global timeEnd;
+    global rangeStartIndex;
+    global rangeEndIndex;
+    
+    timeStart.world = datetime(C3.date_start, 'ConvertFrom', 'datenum');
+    timeEnd.world = datetime(C3.date_end, 'ConvertFrom', 'datenum');
+    
+    deltaTime = timeEnd.world - timeStart.world;
+    timeStart.duration = days(0);
+    timeEnd.duration = days(deltaTime);
+    
+    % creating ECG timestamps, world and duration-based
+    xAxisTimeStamps.world.ECG = linspace(timeStart.world,timeEnd.world,C3.ecg.samplenum);
+    xAxisTimeStamps.duration.ECG = linspace(timeStart.duration,timeEnd.duration,C3.ecg.samplenum);
+
+    % creating Resp timestamps, world and duration-based
+    xAxisTimeStamps.world.Resp = linspace(timeStart.world,timeEnd.world,C3.resp.samplenum);
+    xAxisTimeStamps.duration.Resp = linspace(timeStart.duration,timeEnd.duration,C3.resp.samplenum);
+
+    % creating Accel timestamps, world and duration-based
+    xAxisTimeStamps.world.Accel = linspace(timeStart.world,timeEnd.world,C3.accel.samplenum);
+    xAxisTimeStamps.duration.Accel = linspace(timeStart.duration,timeEnd.duration,C3.accel.samplenum);
+
+    % creating Temp timestamps, world and duration-based
+    xAxisTimeStamps.world.Temp = linspace(timeStart.world,timeEnd.world,length(C3.temp.data));
+    xAxisTimeStamps.duration.Temp = linspace(timeStart.duration,timeEnd.duration,length(C3.temp.data));
+    
+    if strcmp(timeBase,'World')
+        rangeStartIndex = timeStart.world;
+        rangeEndIndex = timeEnd.world;
+    else
+        rangeStartIndex = timeStart.duration;
+        rangeEndIndex = timeEnd.duration;
+    end
 end
 
+function xAxisTimeStamp = getTimeStamps(signalName)
+    global xAxisTimeStamps;
+    global timeBase;
+    if strcmp(timeBase,'World')
+        if strcmp(signalName,'ECG')
+            xAxisTimeStamp = xAxisTimeStamps.world.ECG;
+        elseif strcmp(signalName,'Resp')
+            xAxisTimeStamp = xAxisTimeStamps.world.Resp;
+        elseif strcmp(signalName,'Accel')
+            xAxisTimeStamp = xAxisTimeStamps.world.Accel;
+        elseif strcmp(signalName,'Temp')
+            xAxisTimeStamp = xAxisTimeStamps.world.Temp;
+        end
+    else
+        if strcmp(signalName,'ECG')
+            xAxisTimeStamp = xAxisTimeStamps.duration.ECG;
+        elseif strcmp(signalName,'Resp')
+            xAxisTimeStamp = xAxisTimeStamps.duration.Resp;
+        elseif strcmp(signalName,'Accel')
+            xAxisTimeStamp = xAxisTimeStamps.duration.Accel;
+        elseif strcmp(signalName,'Temp')
+            xAxisTimeStamp = xAxisTimeStamps.duration.Temp;
+        end        
+    end
+end
+
+function setRangeIndices(startTime,endTime)
+    % this function finds the index numbers that correspond to datetime numbers (x-axis)
+    global xAxisTimeStamps;
+    global timeBase;
+    global rangeStartIndex;
+    global rangeEndIndex;
+    
+end
+
+function setRange(C3,startTime,endTime,hEditStartTime,hEditEndTime)
+    global timeBase;
+    if strcmp(timeBase,'World')
+        set(hEditStartTime,'String',datestr(startTime, 'yyyy-mm-dd  HH:MM:SS'));
+        set(hEditEndTime,'String',datestr(endTime, 'yyyy-mm-dd  HH:MM:SS'));
+    else
+        [h,m,s] = hms([startTime endTime]);
+        set(hEditStartTime,'String',sprintf('%02i:%02i:%02i',h(1),m(1),round(s(1))));
+        set(hEditEndTime,'String',sprintf('%02i:%02i:%02i',h(2),m(2),round(s(2))));
+    end
+end
+
+function plotOptions = getPlotOptions()
+    global timeBase;
+    if strcmp(timeBase,'World')
+        plotOptions.LineWidth = 1;        
+    else
+        plotOptions.LineWidth = 1;
+        %plotOptions.DurationTickFormat = 'hh:mm:ss'; % NO GO
+    end
+end

@@ -28,8 +28,10 @@ classdef cortrium_c3 < handle
             C3.accel = c3_accel(C3.data_dir);
             C3.accel.load_data;
             
-            C3.resp = c3_resp(C3.data_dir);
-            C3.resp.load_data;
+            if exist(fullfile(C3.data_dir,'resp_raw.bin'), 'file') == 2
+                C3.resp = c3_resp(C3.data_dir);
+                C3.resp.load_data;
+            end
             
             C3.temp = c3_temp(C3.data_dir);
             C3.temp.load_data;

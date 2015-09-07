@@ -651,6 +651,12 @@ grid(hAxesTemp,'on');
         % Clean accelerometer and temperature data for jitter
         C3.clean_sensor_data;
         
+        fprintf('ecg size: %d %d\n',size(C3.ecg.data));
+        fprintf('resp size: %d %d\n',size(C3.resp.data));
+        fprintf('accel size: %d %d\n',size(C3.accel.data));
+        fprintf('temp size: %d %d\n',size(C3.temp.data));
+        fprintf('\n');
+        
         % Smoothen respiration data
         if ~isempty(C3.resp)
             C3.resp.smoothen;

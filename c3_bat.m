@@ -43,7 +43,7 @@ classdef c3_bat < c3_sensor
                 listBLE = dir([this.filepath '\*.BLE']);
                 if size(listBLE,1) == 1
                     [~,filename_wo_extension,~] = fileparts([this.filepath filesep listBLE(1).name]);
-                    datenum_start = datenum(datetime(hex2dec(filename_wo_extension), 'ConvertFrom', 'posixtime'));
+                    datenum_start = datenum(datetime(hex2dec(filename_wo_extension), 'ConvertFrom', 'posixtime', 'TimeZone', 'Europe/Zurich'));
                 else
                     datenum_start = 0;
                 end

@@ -1,6 +1,7 @@
 classdef c3_sensor < handle
     properties
         data
+        dataFiltered
         fs
         samplenum
         filepath

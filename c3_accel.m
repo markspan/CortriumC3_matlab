@@ -1,6 +1,7 @@
 classdef c3_accel < c3_sensor
     properties
         magnitude
+        magnitudeFiltered
     end
     
     methods
@@ -26,6 +27,8 @@ classdef c3_accel < c3_sensor
                 [tmp_data_z, ~] = fread(fid, [1, inf], 'int16');
                 fclose(fid);
                 this.data = [tmp_data_x',tmp_data_y',tmp_data_z'];
+                % converting from int16 to float for g-force
+                this.data = double(this.data) .* 0.00006103515625;
             elseif size(list2,1) == 1
                 fid = fopen(fullfile(this.filepath,'accel.bin'),'r');
                 [tmp_data, ~] = fread(fid, [3, inf], 'float');

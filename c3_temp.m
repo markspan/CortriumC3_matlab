@@ -31,7 +31,6 @@ classdef c3_temp < c3_sensor
 %             fid = fopen(fullfile(this.filepath,'temp.bin'),'r');
 %             [tmp_data, tmp_samples] = fread(fid, [2, Inf], 'int16');
 %             fclose(fid);
-            
             this.data = tmp_data' * 0.02 - 273.15;
             this.samplenum = length(this.data);
         end

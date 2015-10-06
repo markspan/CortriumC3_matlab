@@ -40,6 +40,18 @@ classdef cortrium_c3 < handle
             C3.get_time_stamps;
         end
         
+        function initializeForBLE(C3)
+            C3.ecg = c3_ecg(C3.data_dir);
+            
+            C3.accel = c3_accel(C3.data_dir);
+            
+            C3.resp = c3_resp(C3.data_dir);
+            
+            C3.temp = c3_temp(C3.data_dir);
+            
+            C3.bat = c3_bat(C3.data_dir);
+        end
+        
         function get_time_stamps(C3)
             C3.date_start = C3.bat.find_date;
             C3.date_end = addtodate(C3.date_start, C3.ecg.samplenum*1000/C3.ecg.fs, 'millisecond');

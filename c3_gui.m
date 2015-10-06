@@ -7,6 +7,7 @@ hTic_buildingGUI = tic;
 C3 = cortrium_c3('');
 dirName = '';
 folderName = '';
+sourceFileName = '';
 
 % Set a temporary screen resolution of 1920x1080 pixels while we construct GUI.
 % Will be modified to actual screen resolution before GUI is displayed.
@@ -638,8 +639,8 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             timeEnd.duration = [];
             % clear axes before displaying new data
             cla([hAxesECG hAxesResp hAxesAccel hAxesTemp]);
-            folderName = updateDirectoryInfo;
             loadAndFormatData;
+            folderName = updateDirectoryInfo;
             timeBase = getTimeBase(hTimebaseButtonGroup);
             [xAxisTimeStamps, timeStart, timeEnd] = calcTimeStamps(C3,xAxisTimeStamps,timeBase,timeStart,timeEnd);
             [rangeStartIndex, rangeEndIndex] = resetRange(C3,rangeStartIndex,rangeEndIndex,hResetButton,hNavLeftButton,hNavRightButton,hRangeSlider,hPopupEvent,hNavEventLeftButton,hNavEventRightButton);
@@ -654,8 +655,27 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         % Create a new C3 object
         C3 = cortrium_c3(dirName);
         
-        % Initialise components and load data
-        C3.initialize;
+        % Is a .BLE file or a set of .bin files file present in this directory
+        listBLE = dir([dirName '\*.BLE']);
+        listBin = dir([dirName '\*.bin']);
+        if size(listBLE,1) == 1
+            % Initialise components
+            C3.initializeForBLE;
+            % load and assign data from .BLE files
+            [C3.accel.data, C3.temp.data, C3.resp.data, C3.ecg.data] = c3_read_ble(fullfile(dirName,listBLE(1).name));
+            C3.accel.samplenum = length(C3.accel.data);
+            C3.temp.samplenum = length(C3.temp.data);
+            C3.resp.samplenum = length(C3.resp.data);
+            C3.ecg.samplenum = length(C3.ecg.data);
+            [~,ble_filename_wo_extension,~] = fileparts(listBLE(1).name);
+            sourceFileName = listBLE(1).name;
+            C3.date_start = datenum(datetime(hex2dec(ble_filename_wo_extension), 'ConvertFrom', 'posixtime', 'TimeZone', 'Europe/Zurich'));
+            C3.date_end = addtodate(C3.date_start, C3.ecg.samplenum*1000/C3.ecg.fs, 'millisecond');
+        elseif size(listBin,1) > 1
+            % Initialise components and load data from .bin files
+            C3.initialize;
+            sourceFileName = '*.bin';
+        end     
         
         % Clean accelerometer and temperature data for jitter
         C3.clean_sensor_data;
@@ -902,11 +922,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         end
     end
 
-
     function folderName = updateDirectoryInfo()
         dirNameParts = strsplit(dirName,filesep);
         folderName = dirNameParts(length(dirNameParts));
-        set(hTextDirInfo,'String',strcat('..', filesep, dirNameParts(length(dirNameParts)-2), filesep, dirNameParts(length(dirNameParts)-1), filesep, dirNameParts(length(dirNameParts))));
+        set(hTextDirInfo,'String',strcat('..', filesep, dirNameParts(length(dirNameParts)-2), filesep, dirNameParts(length(dirNameParts)-1), filesep, dirNameParts(length(dirNameParts)), filesep, sourceFileName));
     end
 
 %% Functions for updating plots, based on checkbox selections

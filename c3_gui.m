@@ -645,6 +645,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             [xAxisTimeStamps, timeStart, timeEnd] = calcTimeStamps(C3,xAxisTimeStamps,timeBase,timeStart,timeEnd);
             [rangeStartIndex, rangeEndIndex] = resetRange(C3,rangeStartIndex,rangeEndIndex,hResetButton,hNavLeftButton,hNavRightButton,hRangeSlider,hPopupEvent,hNavEventLeftButton,hNavEventRightButton);
             setRangeInfo(xAxisTimeStamps,timeBase,rangeStartIndex,rangeEndIndex,hEditStartTime,hEditEndTime);
+            countErrorsECG;
             plotSensorData;
             enableButtons(hPopupRange,hRangeButton);
         end
@@ -659,6 +660,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         listBLE = dir([dirName '\*.BLE']);
         listBin = dir([dirName '\*.bin']);
         if size(listBLE,1) == 1
+            hTic_readBLE = tic;
             % Initialise components
             C3.initializeForBLE;
             % load and assign data from .BLE files
@@ -671,6 +673,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             sourceFileName = listBLE(1).name;
             C3.date_start = datenum(datetime(hex2dec(ble_filename_wo_extension), 'ConvertFrom', 'posixtime', 'TimeZone', 'Europe/Zurich'));
             C3.date_end = addtodate(C3.date_start, C3.ecg.samplenum*1000/C3.ecg.fs, 'millisecond');
+            fprintf('Read BLE file: %f seconds\n',toc(hTic_readBLE));
         elseif size(listBin,1) > 1
             % Initialise components and load data from .bin files
             C3.initialize;
@@ -715,6 +718,18 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         % median filtering of Accel magnitude
         C3.accel.magnitudeFiltered = medfilt1(C3.accel.magnitude,C3.accel.fs);
         fprintf('loadAndFormatData: %f seconds\n',toc(hTic_loadAndFormatData));
+    end
+
+    function countErrorsECG()
+        fprintf('=====================================================\n');
+        fprintf('Error code stats for all channels (total samples: %i)\n', length(C3.ecg.data'));
+        fprintf('ECG Error Code (any error)         : %i\n',               length(find(abs(C3.ecg.data') >= 32765))), 
+        fprintf('ECG Sample max value (ecg = 32767) : %i\n',               length(find(C3.ecg.data' == 32767)))
+        fprintf('ECG Sample min value (ecg = -32765): %i\n',               length(find(C3.ecg.data' == -32765)))
+        fprintf('ECG Filter error (ecg = -32766)    : %i\n',               length(find(C3.ecg.data' == -32766)))
+        fprintf('ECG Lead off (ecg = -32767)        : %i\n',               length(find(C3.ecg.data' == -32767)))
+        fprintf('ECG Comm error (ecg = -32768)      : %i\n',               length(find(C3.ecg.data' == -32768)))
+        fprintf('=====================================================\n');
     end
 
     function plotSensorData()

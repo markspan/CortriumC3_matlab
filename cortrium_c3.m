@@ -9,6 +9,9 @@ classdef cortrium_c3 < handle
         bat
         date_start
         date_end
+        serialNumber
+        leadoff
+        missingSerials
     end
     properties (Access = private)
         data_dir

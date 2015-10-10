@@ -721,10 +721,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
     function countErrorsECG()
-        C3.missingSerials = setdiff(1:max(C3.serialNumber),C3.serialNumber)';
-        fprintf('==========================================================\n');
-        fprintf('Total packets (max serial#): %i Missing packets: %i\n', max(C3.serialNumber),length(C3.missingSerials));
-        fprintf('==========================================================\n');
+        fprintf('=====================================================\n');
         fprintf('Error code stats for all channels (total samples: %i)\n', length(C3.ecg.data'));
         fprintf('ECG Error Code (any error)         : %i\n',               length(find(abs(C3.ecg.data') >= 32765))), 
         fprintf('ECG Sample max value (ecg = 32767) : %i\n',               length(find(C3.ecg.data' == 32767)))
@@ -732,8 +729,8 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         fprintf('ECG Filter error (ecg = -32766)    : %i\n',               length(find(C3.ecg.data' == -32766)))
         fprintf('ECG Lead off (ecg = -32767)        : %i\n',               length(find(C3.ecg.data' == -32767)))
         fprintf('ECG Comm error (ecg = -32768)      : %i\n',               length(find(C3.ecg.data' == -32768)))
-        fprintf('==========================================================\n');
-        
+        fprintf('=====================================================\n');
+        C3.missingserials = setdiff([1:max(serialNumber)],serialNumber)'
         
     end
 

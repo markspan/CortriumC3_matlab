@@ -19,7 +19,7 @@
 % The remaining 4 parts are optional, but if present, each part contains
 % 10 samples with data type int16.
 
-function [serialNumber, leadoff, acc, temp, resp, ecg] = c3_read_ble(ble_fullpath)
+function [acc, temp, resp, ecg] = c3_read_ble(ble_fullpath)
 
     acc = []; temp = []; resp = []; ecg = [];
 
@@ -76,11 +76,14 @@ function [serialNumber, leadoff, acc, temp, resp, ecg] = c3_read_ble(ble_fullpat
     fseek(fid, 16, 'bof'); % rewind
     bat_adc = fread(fid, numBatches, '*uint16', batchSize-2);
     fseek(fid, 18, 'bof'); % rewind
-    leadoff = fread(fid, numBatches, '*int8', batchSize-1);  
+    leadoff = fread(fid, numBatches, '*int8', batchSize-1);
+    
     fseek(fid, 19, 'bof'); % rewind
     conf = fread(fid, numBatches, '*uint8', batchSize-1);
 
-   
+    figure;plot(leadoff);
+    figure;plot(serialNumber);
+    
     % PART 2, RESP
     if respAvailable
         fseek(fid, 20, 'bof'); % rewind

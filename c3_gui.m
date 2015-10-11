@@ -694,17 +694,22 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             sourceFileName = listBLE(1).name;
             C3.date_start = datenum(datetime(hex2dec(ble_filename_wo_extension), 'ConvertFrom', 'posixtime', 'TimeZone', 'Europe/Zurich'));
             C3.date_end = addtodate(C3.date_start, C3.ecg.samplenum*1000/C3.ecg.fs, 'millisecond');
-            C3.ecg.leadoff = double(C3.leadoff);
-            C3.ecg.leadoff(C3.ecg.leadoff ~= 0) = -10000;
-            C3.ecg.leadoff(C3.ecg.leadoff == 0) = NaN;
-            C3.ecg.leadoff = repmat(C3.ecg.leadoff, 10, 1); % to match ecg signal with 10 ecg samples per packet
+            
             C3.missingSerials = setdiff(1:max(C3.serialNumber),C3.serialNumber)';
             fprintf('Read BLE file: %f seconds\n',toc(hTic_readBLE));
         elseif size(listBin,1) > 1
             % Initialise components and load data from .bin files
             C3.initialize;
+            C3.leadoff = zeros(1, C3.temp.samplenum);
             sourceFileName = '*.bin';
         end
+        
+        % Prepare lead-off for GUI view
+        C3.ecg.leadoff = double(C3.leadoff);
+        C3.ecg.leadoff(C3.ecg.leadoff ~= 0) = -10000;
+        C3.ecg.leadoff(C3.ecg.leadoff == 0) = NaN;
+        % to match ecg signal with 10 ecg samples per packet
+        C3.ecg.leadoff = repmat(C3.ecg.leadoff, 10, 1); 
         
         % Clean accelerometer and temperature data for jitter
         C3.clean_sensor_data;

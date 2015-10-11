@@ -396,6 +396,27 @@ uicontrol('Parent',hPanelSensorDisplay,...
     'FontSize',8,...
     'BackgroundColor',panelColor);
 
+% Button, toggles ECG_leadoff plot
+hECGleadoffCheckbox = uicontrol('Parent',hPanelSensorDisplay,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.946,0.857,0.015,0.022],...
+    'Value',1,...
+    'BackgroundColor',panelColor,...
+    'Callback',@ecgPlotFunc);
+
+% Text label, for ECG_leadoff toggle button
+uicontrol('Parent',hPanelSensorDisplay,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.957,0.857,0.04,0.018],...
+    'HorizontalAlignment','left',...
+    'String','Lead off',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
 % Axes object for Respiration plot (impedance)
 hAxesResp = axes('Parent',hPanelSensorDisplay,...
     'Position',[0.045,0.535,0.9,0.185]);
@@ -673,6 +694,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             sourceFileName = listBLE(1).name;
             C3.date_start = datenum(datetime(hex2dec(ble_filename_wo_extension), 'ConvertFrom', 'posixtime', 'TimeZone', 'Europe/Zurich'));
             C3.date_end = addtodate(C3.date_start, C3.ecg.samplenum*1000/C3.ecg.fs, 'millisecond');
+            C3.leadoff = double
+            C3.leadoff(C3.leadoff == 0) = NaN;
+            C3.ecg.leadoff = repmat(C3.leadoff, 10, 1);
+            C3.missingSerials = setdiff(1:max(C3.serialNumber),C3.serialNumber)';
             fprintf('Read BLE file: %f seconds\n',toc(hTic_readBLE));
         elseif size(listBin,1) > 1
             % Initialise components and load data from .bin files
@@ -721,7 +746,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
     function countErrorsECG()
-        fprintf('=====================================================\n');
+        fprintf('==========================================================\n');
+        fprintf('Total packets (max serial): %i Missing packets: %i\n', max(C3.serialNumber),length(C3.missingSerials));
+        fprintf('Number of packets flagged as "Lead off": %i\n', sum(C3.leadoff ~= 0));
+        fprintf('==========================================================\n');
         fprintf('Error code stats for all channels (total samples: %i)\n', length(C3.ecg.data'));
         fprintf('ECG Error Code (any error)         : %i\n',               length(find(abs(C3.ecg.data') >= 32765))), 
         fprintf('ECG Sample max value (ecg = 32767) : %i\n',               length(find(C3.ecg.data' == 32767)))
@@ -729,14 +757,13 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         fprintf('ECG Filter error (ecg = -32766)    : %i\n',               length(find(C3.ecg.data' == -32766)))
         fprintf('ECG Lead off (ecg = -32767)        : %i\n',               length(find(C3.ecg.data' == -32767)))
         fprintf('ECG Comm error (ecg = -32768)      : %i\n',               length(find(C3.ecg.data' == -32768)))
-        fprintf('=====================================================\n');
-        C3.missingserials = setdiff([1:max(serialNumber)],serialNumber)'
+        fprintf('==========================================================\n');
         
     end
 
     function plotSensorData()
 %         linkaxes([hAxesECG hAxesResp hAxesAccel hAxesTemp], 'off');
-        plotECG(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox)
+        plotECG(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox, hECGleadoffCheckbox)
         if ~isempty(C3.resp)
             plotResp(C3,rangeStartIndex.Resp,rangeEndIndex.Resp,xAxisTimeStamps,timeBase,hAxesResp);
         end
@@ -950,7 +977,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
 % the plot functions directly - not using this intermediate function.
 
     function ecgPlotFunc(varargin)
-        plotECG(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox);
+        plotECG(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox, hECGleadoffCheckbox);
     end
 
     function accelPlotFunc(varargin)
@@ -1005,6 +1032,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             end
             if get(hECG3Checkbox, 'Value') == 1 % if checkbox for ECG_3 is ON
                 plot(hAxesECGWindow,xAxisTimeStamp(rangeStartIndex.ECG:rangeEndIndex.ECG),C3.ecg.data(rangeStartIndex.ECG:rangeEndIndex.ECG,3),'Color','b','DurationTickFormat',durTickForm,plotOptions);
+                legendList(length(legendList)+1) = {'ECG\_3'};
+            end
+            if get(hECGleadoffCheckbox, 'Value') == 1 % if checkbox for ECGleadoff is ON
+                plot(hAxesECGWindow,xAxisTimeStamp(rangeStartIndex.ECG:rangeEndIndex.ECG),C3.ecg.leadoff(rangeStartIndex.ECG:rangeEndIndex.ECG),'Color','b','DurationTickFormat',durTickForm,plotOptions);
                 legendList(length(legendList)+1) = {'ECG\_3'};
             end
         end
@@ -1199,7 +1230,7 @@ end
 
 %% Functions (Work in progress... starting to move inline functions outside of main function.)
 
-function plotECG(C3,startIdx,endIdx,xAxisTimeStamps,timeBase,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox)
+function plotECG(C3,startIdx,endIdx,xAxisTimeStamps,timeBase,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox, hECGleadoffCheckbox)
     xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'ECG');
     plotOptions = getPlotOptions(timeBase);
     % clear the plot, then create new plot
@@ -1214,6 +1245,9 @@ function plotECG(C3,startIdx,endIdx,xAxisTimeStamps,timeBase,hAxesECG,hECG1Check
         if get(hECG3Checkbox, 'Value') == 1 % if checkbox for ECG_3 is ON
             plot(hAxesECG,xAxisTimeStamp(startIdx:endIdx),C3.ecg.data(startIdx:endIdx,3),'Color','b',plotOptions);
         end
+        if get(hECGleadoffCheckbox, 'Value') == 1 % if checkbox for ECG_leadoff is ON
+            plot(hAxesECG,xAxisTimeStamp(startIdx:endIdx),C3.ecg.leadoff(startIdx:endIdx),'Color','k',plotOptions);
+        end
     else
         durTickForm = getDurationTickFormat(startIdx, endIdx, C3.ecg.fs);
         if get(hECG1Checkbox, 'Value') == 1 % if checkbox for ECG_1 is ON
@@ -1225,6 +1259,9 @@ function plotECG(C3,startIdx,endIdx,xAxisTimeStamps,timeBase,hAxesECG,hECG1Check
         if get(hECG3Checkbox, 'Value') == 1 % if checkbox for ECG_3 is ON
             plot(hAxesECG,xAxisTimeStamp(startIdx:endIdx),C3.ecg.data(startIdx:endIdx,3),'Color','b','DurationTickFormat',durTickForm,plotOptions);
         end
+             if get(hECGleadoffCheckbox, 'Value') == 1 % if checkbox for ECG_3 is ON
+            plot(hAxesECG,xAxisTimeStamp(startIdx:endIdx),C3.ecg.leadoff(startIdx:endIdx),'Color','k','DurationTickFormat',durTickForm,plotOptions);
+        end   
     end
     hAxesECG.XLim = [datenum(xAxisTimeStamp(startIdx)) datenum(xAxisTimeStamp(endIdx))];
 %     hAxesECG.YLim = [nanmin(C3.ecg.data(startIdx:endIdx)) nanmax(C3.ecg.data(startIdx:endIdx))];

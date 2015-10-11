@@ -1,6 +1,7 @@
 classdef c3_ecg < c3_sensor
     properties
         nbchan
+        leadoff
     end
     
     methods

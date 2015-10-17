@@ -706,10 +706,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         
         % Prepare lead-off for GUI view
         C3.ecg.leadoff = double(C3.leadoff);
-        C3.ecg.leadoff(C3.ecg.leadoff ~= 0) = -10000;
         C3.ecg.leadoff(C3.ecg.leadoff == 0) = NaN;
-        % to match ecg signal with 10 ecg samples per packet
-        C3.ecg.leadoff = repmat(C3.ecg.leadoff, 10, 1); 
+        C3.ecg.leadoff = (C3.ecg.leadoff-10000);
+        % "upsample" to match ecg signal with 10 ecg samples per packet
+        C3.ecg.leadoff = reshape(repmat(C3.ecg.leadoff', 10, 1), [], 1);
         
         % Clean accelerometer and temperature data for jitter
         C3.clean_sensor_data;

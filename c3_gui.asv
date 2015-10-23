@@ -755,7 +755,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         fprintf('==========================================================\n');
         fprintf('== Recording stats                                      ==\n');
         fprintf('==========================================================\n');
-        fprintf('Filename: %s\n', cell2mat(folderName)); 
+        fprintf('Filename: %s\%s\n', cell2mat(folderName)); 
         fprintf('Device ID: %s\n', 'Unknown');
         fprintf('Recording duration: %s\n', 'Unknown');
         fprintf('Recording start: %s\n', 'Unknown');
@@ -772,7 +772,8 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         fprintf('ECG Lead off (ecg = -32767)        : %i\n',               length(find(C3.ecg.data' == -32767)))
         fprintf('ECG Comm error (ecg = -32768)      : %i\n',               length(find(C3.ecg.data' == -32768)))
         fprintf('==========================================================\n');
-        table(unique(C3.leadoff), histc(C3.leadoff(:),unique(C3.leadoff)), round(double(histc(C3.leadoff(:),unique(C3.leadoff))./double(length(C3.leadoff))*100)), 'VariableNames',{'Lead_off_val' 'Count' 'Percent'})
+        table(unique(C3.leadoff), histc(C3.leadoff(:),unique(C3.leadoff)), round(double(histc(C3.leadoff(:),unique(C3.leadoff))./(length(C3.leadoff)*100), 'VariableNames',{'Lead_off_val' 'Count' 'Percent'}));
+        
         
     end
 

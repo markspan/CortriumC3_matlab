@@ -21,6 +21,8 @@
 
 function [serialNumber, leadoff, acc, temp, resp, ecg] = c3_read_ble(ble_fullpath)
 
+    debug = false;
+
     acc = []; temp = []; resp = []; ecg = [];
 
     fid = fopen(ble_fullpath,'r');
@@ -79,7 +81,6 @@ function [serialNumber, leadoff, acc, temp, resp, ecg] = c3_read_ble(ble_fullpat
     leadoff = fread(fid, numBatches, '*int8', batchSize-1);  
     fseek(fid, 19, 'bof'); % rewind
     conf = fread(fid, numBatches, '*uint8', batchSize-1);
-
    
     % PART 2, RESP
     if respAvailable
@@ -188,14 +189,21 @@ function [serialNumber, leadoff, acc, temp, resp, ecg] = c3_read_ble(ble_fullpat
         ecg_3 = reshape([ecg3_1';ecg3_2';ecg3_3';ecg3_4';ecg3_5';ecg3_6';ecg3_7';ecg3_8';ecg3_9';ecg3_10'],[],1);
     end
     fclose(fid);
-
-    % scaling temp to Celsius, and accel to g-force
-    temp_ambient = (temp_ambient * 0.02) - 273.15;
-    temp_object = (temp_object * 0.02) - 273.15;
-    acc_x = acc_x * 0.00006103515625;
-    acc_y = acc_y * 0.00006103515625;
-    acc_z = acc_z * 0.00006103515625;
-
+    
+    if debug
+        % For debugging using bat_adc
+        disp('DEBUGGIING SET IN read_ble.m');
+        figure;plot(bat_adc);
+        table(unique(bat_adc), histc(bat_adc(:),unique(bat_adc)), round(double(histc(bat_adc(:),unique(bat_adc))./double(length(bat_adc)))*100), 'VariableNames',{'bat_adc' 'Count' 'Percent'})
+    else
+        % scaling temp to Celsius, and accel to g-force
+        temp_ambient = (temp_ambient * 0.02) - 273.15;
+        temp_object = (temp_object * 0.02) - 273.15;
+        acc_x = acc_x * 0.00006103515625;
+        acc_y = acc_y * 0.00006103515625;
+        acc_z = acc_z * 0.00006103515625;
+    end
+    
     % find indices of missed batches
     missedBatches = find(serialNumber == 0);
     % set ecg, resp, accel, and temp data in missed batches to 'NaN'

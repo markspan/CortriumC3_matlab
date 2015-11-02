@@ -21,7 +21,7 @@
 % 10 samples with data type uint16 (in the case of using the Resp and ECG 
 % channels to to store process times for debugging).
 
-function [serialNumber, leadoff, acc, temp, proctime] = c3_read_ble_processTimes(ble_fullpath)
+function [serialNumber, leadoff, acc, temp, proctime, missedBatches] = c3_read_ble_processTimes(ble_fullpath)
 
     debug = false; % for bat_adc debugging
 

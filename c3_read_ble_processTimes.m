@@ -21,8 +21,10 @@
 % 10 samples with data type uint16 (in the case of using the Resp and ECG 
 % channels to to store process times for debugging).
 
-function [serialNumber, leadoff, acc, temp, proctime, missedBatches] = c3_read_ble_processTimes(ble_fullpath)
+function [serialNumber, leadoff, acc, temp, proctime, missedPackets] = c3_read_ble_processTimes(ble_fullpath)
 
+    [~,ble_filename_wo_extension,ble_extension] = fileparts(ble_fullpath);
+    
     debug = false; % for bat_adc debugging
 
     acc = []; temp = []; proctime = [];
@@ -207,20 +209,20 @@ function [serialNumber, leadoff, acc, temp, proctime, missedBatches] = c3_read_b
     end
     
     % find indices of missed batches
-    missedBatches = find(serialNumber == 0);
+    missedPackets = find(serialNumber == 0);
     % set ecg, resp, accel, and temp data in missed batches to 'NaN'
-    if ~isempty(missedBatches)
-        fprintf('MISSED BATCHES: %d\n',length(missedBatches));
+    if ~isempty(missedPackets)
+        fprintf([ble_filename_wo_extension,ble_extension ', Total missed packets: %d,  First missed: %d,  Last missed: %d\n'],length(missedPackets),find(missedPackets,1),find(missedPackets,1,'last'));
         % set accel, temp to 'NaN' in missed batches (instead of 0, as is their current value)
-        acc_x(missedBatches) = NaN;
-        acc_y(missedBatches) = NaN;
-        acc_z(missedBatches) = NaN;
-        temp_ambient(missedBatches) = NaN;
-        temp_object(missedBatches) = NaN;
+        acc_x(missedPackets) = NaN;
+        acc_y(missedPackets) = NaN;
+        acc_z(missedPackets) = NaN;
+        temp_ambient(missedPackets) = NaN;
+        temp_object(missedPackets) = NaN;
         % proctime is set to 0 in missed batches. Alternatively set to e.g. intmax('uint16') - or use double and set to NaN
-        proctime(missedBatches,:) = 0;
+        proctime(missedPackets,:) = 0;
     else
-        fprintf('MISSED BATCHES: 0\n');
+        fprintf([ble_filename_wo_extension,ble_extension ', Total missed packets: 0\n']);
     end
     acc = [acc_y, -acc_x, acc_z]; % yes, acc_x = acc_y, and yes, acc_y = -acc_x
     temp = [temp_ambient, temp_object];

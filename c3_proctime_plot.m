@@ -13,6 +13,8 @@ clear;
 
 ble_fullpath = 'D:\Matlab\Cortrium\C3_recordings\ProcessTimes\56350B9D\56350B9D.BLE';
 
+saveImages = false;
+
 % calling c3_read_ble_processTimes.m to load the data
 [serialNumber, ~, ~, ~, proctime, missedPackets] = c3_read_ble_processTimes(ble_fullpath);
 % % alternative, if you want more data
@@ -32,7 +34,7 @@ paperSize = [(winWidth/72)*2.54 (winHeight/72)*2.54];
 paperPosition = [0 0 (winWidth/72)*2.54 (winHeight/72)*2.54];
 
 % maximum proctime. Will be used to set an y-axis limit, shared by all plots.
-yMax = 170; % nanmax(nanmax(proctime));
+yMax = 150; % nanmax(nanmax(proctime));
 
 % min and max x-index (serial number) to plot
 idxMin = 1;
@@ -42,10 +44,12 @@ idxMax = length(serialNumber); %length(serialNumber)
 %--- PLOTS WITH PACKET SERIAL NUMBER ON X-AXIS ---%
 
 % path for image files
-packetsStr = sprintf('Packets %d - %d',idxMin,idxMax);
-imgFiles_path = [ble_path filesep ble_filename_wo_extension '.BLE - process time - ' packetsStr ' - packet serial on X-axis'];
-if ~exist(imgFiles_path,'dir')
-    mkdir(imgFiles_path);
+if saveImages
+    packetsStr = sprintf('Packets %d - %d',idxMin,idxMax);
+    imgFiles_path = [ble_path filesep ble_filename_wo_extension '.BLE - process time - ' packetsStr ' - packet serial on X-axis'];
+    if ~exist(imgFiles_path,'dir')
+        mkdir(imgFiles_path);
+    end
 end
 
 % plot each column of proctime in separate windows
@@ -82,8 +86,10 @@ for ii=1:size(proctime,2)
     hAxesProctime.Box = 'on';
     grid(hAxesProctime,'on');
     hProctimeFig.Visible = 'on';
-    imgTitleStr = sprintf('Process %.2d, packets %d - %d, %s',ii-1,idxMin,idxMax,[ble_filename_wo_extension ble_extension]);
-    print(hProctimeFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng','-r72');
+    if saveImages
+        imgTitleStr = sprintf('Process %.2d, packets %d - %d, %s',ii-1,idxMin,idxMax,[ble_filename_wo_extension ble_extension]);
+        print(hProctimeFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng','-r72');
+    end
 end
 
 %%
@@ -96,10 +102,12 @@ timeEnd.duration = days(length(serialNumber)/25/secondsPerDay);
 xAxisTimeStamps.duration = linspace(timeStart.duration,timeEnd.duration,length(serialNumber));
 
 % path for image files
-packetsStr = sprintf('Packets %d - %d',idxMin,idxMax);
-imgFiles_path = [ble_path filesep ble_filename_wo_extension '.BLE - process time - ' packetsStr ' - recording duration on X-axis'];
-if ~exist(imgFiles_path,'dir')
-    mkdir(imgFiles_path);
+if saveImages
+    packetsStr = sprintf('Packets %d - %d',idxMin,idxMax);
+    imgFiles_path = [ble_path filesep ble_filename_wo_extension '.BLE - process time - ' packetsStr ' - recording duration on X-axis'];
+    if ~exist(imgFiles_path,'dir')
+        mkdir(imgFiles_path);
+    end
 end
 
 % plot each column of proctime in separate windows
@@ -132,6 +140,43 @@ for ii=1:size(proctime,2)
     grid(hAxesProctime,'on');
     %hAxesProctime.XTick = linspace(datenum(xAxisTimeStamps.duration(idxMin)), datenum(xAxisTimeStamps.duration(idxMax)),10);
     hProctimeFig.Visible = 'on';
-    imgTitleStr = sprintf('Process %.2d, packets %d - %d, %s',ii-1,idxMin,idxMax,[ble_filename_wo_extension ble_extension]);
-    print(hProctimeFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng','-r72');
+    if saveImages
+        imgTitleStr = sprintf('Process %.2d, packets %d - %d, %s',ii-1,idxMin,idxMax,[ble_filename_wo_extension ble_extension]);
+        print(hProctimeFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng','-r72');
+    end
 end
+
+%%
+%--- LOOK FOR SIMILARITIES BETWEEN PROCESSES (COLUMNS) ---%
+
+proctimeDouble = double(proctime);
+% R = corrcoef(proctimeDouble);
+columnsForComparison = 1:size(proctime,2);
+
+fprintf(['\n' ble_filename_wo_extension ble_extension ', Process time comparison, for packets %d - %d:\n\n'],idxMin,idxMax);
+while length(columnsForComparison) > 1
+    ii = 1;
+    columnsToRemove = ii;
+    for jj=(ii+1):length(columnsForComparison)
+        diffColumns = proctimeDouble(:,columnsForComparison(ii)) - proctimeDouble(:,columnsForComparison(jj));
+        if isempty(find(diffColumns, 1))
+            %fprintf('No difference between process number %d and %d\n',columnsForComparison(ii)-1,columnsForComparison(jj)-1);
+            columnsToRemove = [columnsToRemove jj];
+        end
+    end
+%     display(columnsToRemove);
+    if length(columnsToRemove) > 1
+        fprintf('No time difference between processes:');
+        for kk=1:length(columnsToRemove)
+            fprintf(' %d ',columnsForComparison(columnsToRemove(kk))-1);
+        end
+        fprintf('\n');
+%         fprintf('Correlation coefficient:');
+%         for kk=1:(length(columnsToRemove)-1)
+%             fprintf(' %5.3f',R(columnsToRemove(kk),columnsToRemove(kk+1)));
+%         end
+%         fprintf('\n');
+    end
+    columnsForComparison(columnsToRemove) = [];
+end
+fprintf('\n');

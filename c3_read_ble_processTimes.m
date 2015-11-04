@@ -25,7 +25,7 @@ function [serialNumber, leadoff, acc, temp, proctime, missedPackets] = c3_read_b
 
     [~,ble_filename_wo_extension,ble_extension] = fileparts(ble_fullpath);
     
-    debug = false; % for bat_adc debugging
+    debug = true; % for bat_adc debugging
 
     acc = []; temp = []; proctime = [];
 
@@ -212,7 +212,7 @@ function [serialNumber, leadoff, acc, temp, proctime, missedPackets] = c3_read_b
     missedPackets = find(serialNumber == 0);
     % set ecg, resp, accel, and temp data in missed batches to 'NaN'
     if ~isempty(missedPackets)
-        fprintf([ble_filename_wo_extension,ble_extension ', Total missed packets: %d,  First missed: %d,  Last missed: %d\n'],length(missedPackets),find(missedPackets,1),find(missedPackets,1,'last'));
+        fprintf([ble_filename_wo_extension,ble_extension ', Total missed packets: %d,  First missed: %d,  Last missed: %d\n'],length(missedPackets),missedPackets(1),missedPackets(end));
         % set accel, temp to 'NaN' in missed batches (instead of 0, as is their current value)
         acc_x(missedPackets) = NaN;
         acc_y(missedPackets) = NaN;

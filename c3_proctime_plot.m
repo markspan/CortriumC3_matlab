@@ -11,7 +11,7 @@ clear;
 % % (MATLAB R2014b+) turn off graphics smoothing on graphics root object
 % set(groot,'DefaultFigureGraphicsSmoothing','off')
 
-ble_fullpath = 'D:\Matlab\Cortrium\C3_recordings\ProcessTimes\56350B9D\56350B9D.BLE';
+ble_fullpath = 'C:\Users\CT\Documents\MATLAB\Cortrium\C3_recordings\ProcessTimes\5638CA39\5638CA39.BLE';
 
 saveImages = false;
 
@@ -34,7 +34,7 @@ paperSize = [(winWidth/72)*2.54 (winHeight/72)*2.54];
 paperPosition = [0 0 (winWidth/72)*2.54 (winHeight/72)*2.54];
 
 % maximum proctime. Will be used to set an y-axis limit, shared by all plots.
-yMax = 150; % nanmax(nanmax(proctime));
+yMax = 350; % nanmax(nanmax(proctime));
 
 % min and max x-index (serial number) to plot
 idxMin = 1;
@@ -121,14 +121,14 @@ for ii=1:size(proctime,2)
         'PaperPosition',paperPosition,...
         'Visible','off'); %,'Visible','off'
     hAxesProctime = axes('Parent',hProctimeFig,'Position',[0.05,0.08,0.9,0.85]);
-    plot(hAxesProctime,xAxisTimeStamps.duration(idxMin:idxMax),proctime(idxMin:idxMax,ii),'Color','b','DurationTickFormat','mm:ss.SSS');
+    plot(hAxesProctime,xAxisTimeStamps.duration(idxMin:idxMax),proctime(idxMin:idxMax,ii),'Color','b','DurationTickFormat','hh:mm:ss.SSS');
     hold on;
     % Plot missed packets as red dots
     if ~isempty(missedPackets)
         idxMinMissed = find(missedPackets >= idxMin,1);
         if ~isempty(idxMinMissed)
             idxMaxMissed = find(missedPackets <= idxMax,1,'last');
-            plot(hAxesProctime,xAxisTimeStamps.duration(missedPackets(idxMinMissed:idxMaxMissed)),proctime(missedPackets(idxMinMissed:idxMaxMissed),ii),'Color','r','LineStyle','none','Marker','*','MarkerSize',2,'DurationTickFormat','mm:ss.SSS');
+            plot(hAxesProctime,xAxisTimeStamps.duration(missedPackets(idxMinMissed:idxMaxMissed)),proctime(missedPackets(idxMinMissed:idxMaxMissed),ii),'Color','r','LineStyle','none','Marker','*','MarkerSize',2,'DurationTickFormat','hh:mm:ss.SSS');
         end
     end
     title(hAxesProctime,FigTitleStr,'FontSize',14,'FontWeight','bold');

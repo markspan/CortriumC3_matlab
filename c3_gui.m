@@ -1275,7 +1275,7 @@ else
         plot(hAxesECG,xAxisTimeStamp(startIdx:endIdx),C3.ecg.data(startIdx:endIdx,3),'Color','b','DurationTickFormat',durTickForm,plotOptions);
     end
     if get(hECGleadoffCheckbox, 'Value') == 1 % if checkbox for ECG_3 is ON
-        plot(hAxesECG,xAxisTimeStamp(startIdx:endIdx),C3.ecg.leadoff(startIdx:endIdx),'Color',[0.5 0.5 0.5],plotOptions, 'LineWidth', 10);
+        plot(hAxesECG,xAxisTimeStamp(startIdx:endIdx),C3.ecg.leadoff(startIdx:endIdx),'Color',[0.5 0.5 0.5],'DurationTickFormat',durTickForm, 'LineWidth', 10);
     end
 end
 hAxesECG.XLim = [datenum(xAxisTimeStamp(startIdx)) datenum(xAxisTimeStamp(endIdx))];

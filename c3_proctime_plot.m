@@ -11,12 +11,13 @@ clear;
 % % (MATLAB R2014b+) turn off graphics smoothing on graphics root object
 % set(groot,'DefaultFigureGraphicsSmoothing','off')
 
-ble_fullpath = 'C:\Users\CT\Documents\MATLAB\Cortrium\C3_recordings\ProcessTimes\5638CA39\5638CA39.BLE';
+%ble_fullpath = 'C:\Users\CT\Documents\MATLAB\Cortrium\C3_recordings\ProcessTimes\2015-11-13 - 09.05\43.BLE';
+ble_fullpath = 'C:\Users\CT\Documents\MATLAB\Cortrium\C3_recordings\ProcessTimes\2015-11-13 - 08.22 - 1GB\0.BLE';
 
 saveImages = false;
 
 % calling c3_read_ble_processTimes.m to load the data
-[serialNumber, ~, ~, ~, proctime, missedPackets] = c3_read_ble_processTimes(ble_fullpath);
+[conf, serialNumber, bat_adc, leadoff, acc, temp, proctime, missedPackets] = c3_read_ble_processTimes(ble_fullpath);
 % % alternative, if you want more data
 %[serialNumber, leadoff, acc, temp, proctime] = c3_read_ble_processTimes(ble_fullpath);
 
@@ -34,7 +35,7 @@ paperSize = [(winWidth/72)*2.54 (winHeight/72)*2.54];
 paperPosition = [0 0 (winWidth/72)*2.54 (winHeight/72)*2.54];
 
 % maximum proctime. Will be used to set an y-axis limit, shared by all plots.
-yMax = 350; % nanmax(nanmax(proctime));
+yMax = 650; % max(max(proctime));
 
 % min and max x-index (serial number) to plot
 idxMin = 1;
@@ -74,12 +75,12 @@ for ii=1:size(proctime,2)
         idxMinMissed = find(missedPackets >= idxMin,1);
         if ~isempty(idxMinMissed)
             idxMaxMissed = find(missedPackets <= idxMax,1,'last');
-            plot(hAxesProctime,missedPackets(idxMinMissed:idxMaxMissed),proctime(missedPackets(idxMinMissed:idxMaxMissed),ii),'Color','r','LineStyle','none','Marker','*','MarkerSize',2);
+            plot(hAxesProctime,missedPackets(idxMinMissed:idxMaxMissed),proctime(missedPackets(idxMinMissed:idxMaxMissed),ii),'Color','r','LineStyle','none','Marker','*','MarkerSize',3);
         end
     end
     title(hAxesProctime,FigTitleStr,'FontSize',14,'FontWeight','bold');
-    xlabel(hAxesProctime,'packet serial number','FontSize',10);
-    ylabel(hAxesProctime,'process time (ms)','FontSize',10);
+    xlabel(hAxesProctime,'packet serial number','FontSize',12);
+    ylabel(hAxesProctime,'process time (ms)','FontSize',12);
     set(hAxesProctime,'FontSize',10);
     hAxesProctime.XLim = [idxMin idxMax];
     hAxesProctime.YLim = [0 yMax]; % y-axis limits
@@ -121,24 +122,81 @@ for ii=1:size(proctime,2)
         'PaperPosition',paperPosition,...
         'Visible','off'); %,'Visible','off'
     hAxesProctime = axes('Parent',hProctimeFig,'Position',[0.05,0.08,0.9,0.85]);
-    plot(hAxesProctime,xAxisTimeStamps.duration(idxMin:idxMax),proctime(idxMin:idxMax,ii),'Color','b','DurationTickFormat','hh:mm:ss.SSS');
+    plot(hAxesProctime,xAxisTimeStamps.duration(idxMin:idxMax),proctime(idxMin:idxMax,ii),'Color','b','DurationTickFormat','hh:mm');%:ss.SSS
     hold on;
     % Plot missed packets as red dots
     if ~isempty(missedPackets)
         idxMinMissed = find(missedPackets >= idxMin,1);
         if ~isempty(idxMinMissed)
             idxMaxMissed = find(missedPackets <= idxMax,1,'last');
-            plot(hAxesProctime,xAxisTimeStamps.duration(missedPackets(idxMinMissed:idxMaxMissed)),proctime(missedPackets(idxMinMissed:idxMaxMissed),ii),'Color','r','LineStyle','none','Marker','*','MarkerSize',2,'DurationTickFormat','hh:mm:ss.SSS');
+            plot(hAxesProctime,xAxisTimeStamps.duration(missedPackets(idxMinMissed:idxMaxMissed)),proctime(missedPackets(idxMinMissed:idxMaxMissed),ii),'Color','r','LineStyle','none','Marker','*','MarkerSize',3,'DurationTickFormat','hh:mm');%:ss.SSS
         end
     end
     title(hAxesProctime,FigTitleStr,'FontSize',14,'FontWeight','bold');
-    xlabel(hAxesProctime,'recording time (min:sec.millisec)','FontSize',10);
-    ylabel(hAxesProctime,'process time (ms)','FontSize',10);
+    xlabel(hAxesProctime,'recording time (hrs:min)','FontSize',12);
+    ylabel(hAxesProctime,'process time (ms)','FontSize',12);
     set(hAxesProctime,'FontSize',10);
     hAxesProctime.YLim = [0 yMax]; % y-axis limits
     hAxesProctime.XLim = [datenum(xAxisTimeStamps.duration(idxMin)) datenum(xAxisTimeStamps.duration(idxMax))];
     grid(hAxesProctime,'on');
     %hAxesProctime.XTick = linspace(datenum(xAxisTimeStamps.duration(idxMin)), datenum(xAxisTimeStamps.duration(idxMax)),10);
+    hProctimeFig.Visible = 'on';
+    if saveImages
+        imgTitleStr = sprintf('Process %.2d, packets %d - %d, %s',ii-1,idxMin,idxMax,[ble_filename_wo_extension ble_extension]);
+        print(hProctimeFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng','-r72');
+    end
+end
+
+%% MOVING SUM
+
+% window size
+N = 19;
+% moving sum
+procTimeMovSum = filter(ones(1,N),1,double(proctime(idxMin:idxMax,:)));
+
+% path for image files
+if saveImages
+    packetsStr = sprintf('Packets %d - %d',idxMin,idxMax);
+    imgFiles_path = [ble_path filesep ble_filename_wo_extension '.BLE - moving sum process time - ' packetsStr ' - packet serial on X-axis'];
+    if ~exist(imgFiles_path,'dir')
+        mkdir(imgFiles_path);
+    end
+end
+
+yMax = 650;%max(max(procTimeMovSum));
+
+% plot each column of moving sum of proctime in separate windows
+for ii=17:17%size(proctime,2)
+    FigTitleStr = sprintf('Process: %d      Moving sum (N = %d)      Packets: %d - %d     File: %s',ii-1,N,idxMin,idxMax,[ble_filename_wo_extension ble_extension]);
+    hProctimeFig = figure('Numbertitle','off','Name',FigTitleStr,...
+        'Units', 'pixels',...
+        'Position', [winXpos winYpos winWidth winHeight],...
+        'PaperUnits','centimeters',...
+        'PaperSize',paperSize,...
+        'PaperPosition',paperPosition,...
+        'Visible','off'); %,'Visible','off'
+    hAxesProctime = axes('Parent',hProctimeFig,'Position',[0.05,0.08,0.9,0.85]);
+    % NOTE: missed bluetooth packets all have serial number = 0.
+    % Here, (1:idxMax) is used as x-axis data.
+    % Optionally, x-axis ticks could be replaced by actual serial number.
+    plot(hAxesProctime,(idxMin:idxMax),procTimeMovSum(:,ii),'Color','b'); % plot as line
+    hold on;
+    % Plot missed packets as red dots
+    if ~isempty(missedPackets)
+        idxMinMissed = find(missedPackets >= idxMin,1);
+        if ~isempty(idxMinMissed)
+            idxMaxMissed = find(missedPackets <= idxMax,1,'last');
+            plot(hAxesProctime,missedPackets(idxMinMissed:idxMaxMissed),procTimeMovSum((missedPackets(idxMinMissed:idxMaxMissed)-idxMin+1),ii),'Color','r','LineStyle','none','Marker','*','MarkerSize',3);
+        end
+    end
+    title(hAxesProctime,FigTitleStr,'FontSize',14,'FontWeight','bold');
+    xlabel(hAxesProctime,'packet serial number','FontSize',12);
+    ylabel(hAxesProctime,['moving sum (N = ' num2str(N) ') of process time (ms)'],'FontSize',12);
+    set(hAxesProctime,'FontSize',10);
+    hAxesProctime.XLim = [idxMin idxMax];
+    hAxesProctime.YLim = [0 yMax]; % y-axis limits
+    hAxesProctime.Box = 'on';
+    grid(hAxesProctime,'on');
     hProctimeFig.Visible = 'on';
     if saveImages
         imgTitleStr = sprintf('Process %.2d, packets %d - %d, %s',ii-1,idxMin,idxMax,[ble_filename_wo_extension ble_extension]);
@@ -180,3 +238,10 @@ while length(columnsForComparison) > 1
     columnsForComparison(columnsToRemove) = [];
 end
 fprintf('\n');
+
+%% LOOK FOR TIMES GREATER THAN
+
+[idxGT_row, idxGT_col] = find(proctime > 200);
+% offset column number by -1, so it matches process number
+idxGT_col = idxGT_col -1;
+idxGT_row_col = [idxGT_row, idxGT_col];

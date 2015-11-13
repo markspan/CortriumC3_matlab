@@ -21,7 +21,7 @@
 % 10 samples with data type uint16 (in the case of using the Resp and ECG 
 % channels to to store process times for debugging).
 
-function [serialNumber, leadoff, acc, temp, proctime, missedPackets] = c3_read_ble_processTimes(ble_fullpath)
+function [conf, serialNumber, bat_adc, leadoff, acc, temp, proctime, missedPackets] = c3_read_ble_processTimes(ble_fullpath)
 
     [~,ble_filename_wo_extension,ble_extension] = fileparts(ble_fullpath);
     
@@ -198,7 +198,13 @@ function [serialNumber, leadoff, acc, temp, proctime, missedPackets] = c3_read_b
         % For debugging using bat_adc
         disp('DEBUGGIING SET IN read_ble.m');
         figure;plot(bat_adc);
+        title('bat\_adc, debug mode','FontSize',14,'FontWeight','bold');
+        xlabel('packet number','FontSize',12);
+        ylabel('value','FontSize',12);
+        set(gca,'FontSize',10);
         table(unique(bat_adc), histc(bat_adc(:),unique(bat_adc)), round(double(histc(bat_adc(:),unique(bat_adc))./double(length(bat_adc)))*100), 'VariableNames',{'bat_adc' 'Count' 'Percent'})
+%         temp_ambient = (temp_ambient * 0.02) - 273.15;
+%         temp_object = (temp_object * 0.02) - 273.15;
     else
         % scaling temp to Celsius, and accel to g-force
         temp_ambient = (temp_ambient * 0.02) - 273.15;

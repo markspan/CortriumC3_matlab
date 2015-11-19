@@ -2,23 +2,22 @@
 % 24bit version, for ECG and RESP data saved with 24bit precision.
 
 % The BLE file contains a sequence of batches.
-% Each batch contains up to 5 parts, with 20 bytes in each part.
+% Each batch contains up to 4 parts, with 20 bytes in each part.
 
 % Part 1 is mandatory, and is structured like so:
 % uint32    serial;     % incremented for every batch. If serial number is 0, then the batch is invalid and all data in the batch are 0.    
 % int16     acc_x;
 % int16     acc_y;
 % int16     acc_z;
-% uint16    temp_ambient;
-% uint16    temp_object;
-% uint8     bat_status; % 0 when charging; 1 when discharging
-% uint8     bat_level;  % 0-100%
-% uint16    bat_adc;
+% uint16    temp_ambient_object; % temp_ambient and temp_object alternate in every second (modulus 2) batch
+% uint16    serial_ADS;
+% uint8     bat_status; % bat_level and bat_status, packed into bitmask
+% bit24     resp; % 24 bit, signed, respiration sample
 % int8      leadoff;
 % uint8     conf;       % bitmask indicating which (if any) of the RESP, ECG1, ECG2, ECG3 parts appear after Part 1. This configuration never changes within the current BLE file.
 
-% The remaining 4 parts are optional, but if present, each part contains
-% 10 samples with data type int16.
+% The remaining 3 parts are optional, but if present, each part contains
+% an uint16 serial, and 6 samples of 24bit ECG data.
 
 function [serialNumber, conf, serial_ADS, leadoff, acc, temp, resp, ecg, ecg_serials] = c3_read_ble_24bit(ble_fullpath)
 
@@ -62,7 +61,7 @@ function [serialNumber, conf, serial_ADS, leadoff, acc, temp, resp, ecg, ecg_ser
 
     % set the file pointer to the start of the file
     frewind(fid);
-    numBatches = Inf; % read all batches
+    numBatches = Inf; % 'Inf' = read all batches
     batchSize = 20 + ((ecg1Available + ecg2Available + ecg3Available) * 20); % how many bytes a batch contains, depends on how many sensor signals were included
 
     % PART 1, MISC, MANDATORY PAYLOAD

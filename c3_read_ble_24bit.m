@@ -23,7 +23,7 @@ function [serialNumber, conf, serial_ADS, leadoff, acc, temp, resp, ecg, ecg_ser
 
     debug = false;
 
-    acc = []; temp = []; resp = []; ecg = [];
+    acc = []; temp = []; resp = []; ecg = []; ecg1 = []; ecg2 = []; ecg3 = []; ecg1_serial = []; ecg2_serial = []; ecg3_serial = [];
 
     fid = fopen(ble_fullpath,'r');
 
@@ -50,7 +50,7 @@ function [serialNumber, conf, serial_ADS, leadoff, acc, temp, resp, ecg, ecg_ser
     end
 
     % find out which parts are available in this file
-    conf_bin = dec2bin(valid_conf); % conf, in binary form
+    conf_bin = dec2bin(valid_conf,8); % conf, in binary form
     respAvailable = (conf_bin(end) == '1');
     ecg1Available = (conf_bin(end-1) == '1');
     ecg2Available = (conf_bin(end-2) == '1');
@@ -200,6 +200,11 @@ function [serialNumber, conf, serial_ADS, leadoff, acc, temp, resp, ecg, ecg_ser
 %         end
     end
     acc = [acc_y, -acc_x, acc_z]; % yes, acc_x = acc_y, and yes, acc_y = -acc_x
+    % if we have one less temp_ambient sample than temp_object (because of odd munber of batches)
+    if (length(temp_object) - length(temp_ambient)) == 1
+        % extend temp_ambient with one sample equal to the final sample
+        temp_ambient(end+1) = temp_ambient(end);
+    end
     temp = [temp_ambient, temp_object];
     ecg = [ecg1, ecg2, ecg3];
     ecg_serials = [ecg1_serial, ecg2_serial, ecg3_serial];

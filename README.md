@@ -3,7 +3,18 @@ MATLAB
 
 MATLAB scripts to load and process data from Cortrium C3 medical device.
 
-Run c3_gui.m and locate folder with exported Cortrium C3 data.
+How do I get set up?
+
+Add paths with subdirs in Matlab for:
+
+    common
+    filters
+
+Run GUI
+
+See common/c3_gui_video.mp4 for instructions. Run common/c3_gui.m to start
+
+
 A guide to exporting data through iTunes can be found here:
 [Save data from Cortrium C3 using iTunes](http://cortrium.com/how-to-save-data-from-cortrium-c3-using-itunes/)
 

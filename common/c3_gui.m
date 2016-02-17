@@ -1125,6 +1125,20 @@ hButtonECGkitGenReport = uicontrol('Parent',hPanelECGkitGenReport,...
     'Enable','off',...
     'Callback',@genECGkitAnalyseFunc);
 
+% Text label, informing about the necessity of reportScripts and ECGkit
+if ~exist([cortrium_matlab_scripts_root_path filesep 'reportScripts'],'dir')
+    uicontrol('Parent',hPanelECGkitAnalysis,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.05,0.01,0.9,0.06],...
+    'HorizontalAlignment','left',...
+    'String',sprintf('NOTE: Requires report scripts and ECGkit!'),...
+    'FontWeight','normal',...
+    'ForegroundColor',[0.9 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+end
+
 %% -----Panel: Miscellaneous Plots-----
 
 % create a parent panel for filter functionality sub-panels
@@ -4017,28 +4031,36 @@ function genECGkitReport(C3,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,r
         warndlg('No ECG channels selected for analysis!')
         return;
     end
-    ecgRanges = [];
     if isempty(hECGkitListBox.Value)
         ecgRanges = [indexStartECG indexEndECG];
+        jsonTimeOffsetMillisecs = (indexStartECG/double(C3.ecg.fs)) * 1000;
     else
-        ecgRanges(length(hECGkitListBox.Value),2) = 0;
+        jsonTimeOffsetMillisecs = zeros(length(hECGkitListBox.Value),1);
+        ecgRanges = zeros(length(hECGkitListBox.Value),2);
         for ii=1:length(hECGkitListBox.Value)
             % if the first item on the list is selected, it means 'Displayed range'
             if hECGkitListBox.Value(ii) == 1
                 ecgRanges(ii,:) = [indexStartECG indexEndECG];
+                jsonTimeOffsetMillisecs(ii) = (ecgRanges(ii,1)/double(C3.ecg.fs)) * 1000;
             else
                 % find start and end index numbers, based on the list selection
                 ecgRanges(ii,:) = [reportIOmarkers(hECGkitListBox.Value(ii)-1).inEcgIndex reportIOmarkers(hECGkitListBox.Value(ii)-1).outEcgIndex];
+                jsonTimeOffsetMillisecs(ii) = (ecgRanges(ii,1)/double(C3.ecg.fs)) * 1000;
             end
         end
     end
-    % For every range, export ECG data to MIT-format (.dat, .hea) files, and call the report script
+    % For every range, export ECG data to MIT-format (.dat, .hea) files, and call the report script.
+    % Temporary variable for jsondata, to avoid time-offsets being saved to the JSON file.
+    jsondata_temp = jsondata;
+    timeStartOfRecording = C3.date_start;
     for ii=1:size(ecgRanges,1)
         hea_fullpath = exportECGtoMITfiles(C3,ecgRanges(ii,1),ecgRanges(ii,2),xAxisTimeStamps,timeBase,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,full_path,'displayed','ecgkit');
         ecgkit_run(hea_fullpath);
         % call report script if checkbox is set to true
         if hECGkitMakePDFCheckbox.Value == 1
-            pdf_fullpath = ecgReportType1(jsondata, hea_fullpath);
+            timeStartOfThisSegment = datetime(addtodate(timeStartOfRecording,jsonTimeOffsetMillisecs(ii),'millisecond'),'ConvertFrom','datenum','Format','yyyy-MM-dd''T''HH:mm:ss.SSS+0000','TimeZone','UTC');
+            jsondata_temp.start = datestr(timeStartOfThisSegment,'yyyy-mm-ddTHH:MM:SS.FFF+0000');
+            pdf_fullpath = ecgReportType1(jsondata_temp, hea_fullpath);
             % open report, if one was created and checkbox is set to true
             if ~isempty(pdf_fullpath) && hECGkitOpenPDFCheckbox.Value == 1
                 winopen(pdf_fullpath);

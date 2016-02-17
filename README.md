@@ -10,8 +10,6 @@ Add paths with subdirs in Matlab for:
     common
     filters
 
-Run GUI
-
 See common/c3_gui_video.mp4 for instructions. Run common/c3_gui.m to start
 
 

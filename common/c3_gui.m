@@ -437,29 +437,24 @@ hPanelFilterECG = uipanel('Parent',hPanelFilterData,...
     'Position',[0.05 0.74 0.9 0.16],...
     'BackgroundColor',panelColor);
 
-% Checkbox, toggles ECG highpass filter (only for 24bit data)
-hECGhighpassCheckbox = uicontrol('Parent',hPanelFilterECG,...
-    'Style','checkbox',...
-    'Units','normalized',...
-    'Position',[0.025,0.6,0.075,0.3],...
-    'Value',1,...
+% Popup menu, for selecting ECG Highpass filter
+hPopupEcgHighPass = uicontrol('Parent',hPanelFilterECG,...
+    'Style', 'popup',...
     'Enable','on',...
-    'BackgroundColor',panelColor,...
+    'Units','normalized',...
+    'Position',[0.02,0.5,0.96,0.45],...
+    'String',  {'Highpass OFF',...
+                'Highpass, (forward) IIR, butterw, N 1, fc 0.32Hz, fs 250Hz',...
+                'Highpass, (forward) IIR, butterw, N 2, fc 0.32Hz, fs 250Hz',...
+                'Highpass, (forward+reverse) IIR, butterw, N 2, fc 0.32Hz, fs 250Hz',...
+                'Highpass, (forward+reverse) IIR, butterw, N 1, fc 0.5Hz, fs 250Hz',...
+                'Highpass, (forward+reverse) IIR, butterw, N 2, fc 0.5Hz, fs 250Hz',...
+                'Highpass, (forward+reverse) IIR, butterw, N 6, fc 0.5Hz, fs 250Hz',...
+                'Highpass, (forward+reverse) IIR, butterw, N 12, fc 0.5Hz, fs 250Hz'},...
+    'FontSize',8,...
     'Callback',{@filterIntermediateToggleFunc,'ecg'});
 
-% Text label, for ECG Highpass checkbox
-uicontrol('Parent',hPanelFilterECG,...
-    'Style','text',...
-    'Units','normalized',...
-    'position',[0.105,0.59,0.65,0.25],...
-    'HorizontalAlignment','left',...
-    'String','Highpass',...
-    'FontWeight','normal',...
-    'ForegroundColor',[0 0 0],...
-    'FontSize',8,...
-    'BackgroundColor',panelColor);
-
-% Popup menu, for selecting functionality panels
+% Popup menu, for selecting ECG Lowpass filter
 hPopupEcgLowPass = uicontrol('Parent',hPanelFilterECG,...
     'Style', 'popup',...
     'Enable','on',...
@@ -2060,11 +2055,11 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         % Initialize filtering checkboxes, based on what options the
         % current fileFormat offers (e.g. 16bit ECG and Resp data from C3 
         % already has highpass filtering, therefore it can not be disabled).
-        initializeFilterCheckboxes(fileFormat, hECGhighpassCheckbox, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox);
+        initializeFilterSelections(fileFormat, hPopupEcgHighPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox);
         
         %----- FILTERING -----%        
         % Filter the data (or leave raw) depending on the selected filter checkboxes
-        initializeFiltering(C3, fileFormat, hECGhighpassCheckbox, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox);
+        initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox);
         
         fprintf('loadAndFormatData: %f seconds\n',toc(hTic_loadAndFormatData));
     end
@@ -2391,7 +2386,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     function filterIntermediateToggleFunc(hUiCtrl, uiEventData, signalName)
         % if we have Accel data, then we have at least some other data too, and can proceed to filtering
         if size(C3.accel,1) ~= 0
-            filterToggleFunc(hUiCtrl, uiEventData, C3, fileFormat, signalName, gS, hECGhighpassCheckbox, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox);
+            filterToggleFunc(hUiCtrl, uiEventData, C3, fileFormat, signalName, gS, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox);
             switch signalName
                 case 'ecg'
                     ecgPlotFunc;
@@ -3538,11 +3533,11 @@ function clearAxes(axesObjHandles)
     end
 end
 
-function initializeFilterCheckboxes(fileFormat, hECGhighpassCheckbox, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox)
+function initializeFilterSelections(fileFormat, hPopupEcgHighPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox)
     switch fileFormat
         case 'BLE 24bit'
             % enable all filter checkboxes for 24bit data, but leave selection as is
-            hECGhighpassCheckbox.Enable = 'on';
+            hPopupEcgHighPass.String{1} = 'Highpass OFF';
             hRespHighpassCheckbox.Enable = 'on';
             hRespLowpassCheckbox.Enable = 'on';
             hAccelJitterCheckbox.Enable = 'on';
@@ -3551,8 +3546,8 @@ function initializeFilterCheckboxes(fileFormat, hECGhighpassCheckbox, hRespHighp
         otherwise
             % disable but select ECG and Resp Highpass filter checkboxes
             % for 16bit data (forcing them to stay selected, since we don't have the raw data anyway)
-            hECGhighpassCheckbox.Enable = 'off';
-            hECGhighpassCheckbox.Value = 1;
+            hPopupEcgHighPass.String{1} = 'Highpass was already preapplied by C3';
+            hPopupEcgHighPass.Value = 1;
             hRespHighpassCheckbox.Enable = 'off';
             hRespHighpassCheckbox.Value = 1;
             hRespLowpassCheckbox.Enable = 'on';
@@ -3562,15 +3557,60 @@ function initializeFilterCheckboxes(fileFormat, hECGhighpassCheckbox, hRespHighp
     end
 end
 
-function initializeFiltering(C3, fileFormat, hECGhighpassCheckbox, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox)
+function initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox)
     switch fileFormat
         % 24bit data
         case 'BLE 24bit'
             %ECG
             C3.ecg.data = C3.ecg.dataRaw;
             % ECG highpass filter option
-            if hECGhighpassCheckbox.Value == 1
-                C3.ecg.data = filterEcgHighpass(C3);
+            if hPopupEcgHighPass.Value == 2
+                hF = designfilt('highpassiir','FilterOrder',1,'HalfPowerFrequency',0.32,'DesignMethod','butter','SampleRate',250);
+                C3.ecg.data = filter(hF,C3.ecg.data);
+            elseif hPopupEcgHighPass.Value == 3
+                hF = designfilt('highpassiir','FilterOrder',2,'HalfPowerFrequency',0.32,'DesignMethod','butter','SampleRate',250);
+                C3.ecg.data = filter(hF,C3.ecg.data);
+            elseif hPopupEcgHighPass.Value == 4
+                hF = designfilt('highpassiir','FilterOrder',2,'HalfPowerFrequency',0.32,'DesignMethod','butter','SampleRate',250);
+                C3.ecg.data = filtfilt(hF,C3.ecg.data);
+            elseif hPopupEcgHighPass.Value == 5
+                hF = designfilt('highpassiir','FilterOrder',1,'HalfPowerFrequency',0.5,'DesignMethod','butter','SampleRate',250);
+                C3.ecg.data = filtfilt(hF,C3.ecg.data);
+            elseif hPopupEcgHighPass.Value == 6
+                hF = designfilt('highpassiir','FilterOrder',2,'HalfPowerFrequency',0.5,'DesignMethod','butter','SampleRate',250);
+                C3.ecg.data = filtfilt(hF,C3.ecg.data);
+            elseif hPopupEcgHighPass.Value == 7
+                hF = designfilt('highpassiir','FilterOrder',6,'HalfPowerFrequency',0.5,'DesignMethod','butter','SampleRate',250);
+                C3.ecg.data = filtfilt(hF,C3.ecg.data);
+            elseif hPopupEcgHighPass.Value == 8
+                hF = designfilt('highpassiir','FilterOrder',12,'HalfPowerFrequency',0.5,'DesignMethod','butter','SampleRate',250);
+                C3.ecg.data = filtfilt(hF,C3.ecg.data);
+            end
+            % Lowpass filtering
+            if hPopupEcgLowPass.Value == 2
+                Hd = Lowpass_FIR_max_flat_ord10_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 3
+                Hd = Lowpass_FIR_max_flat_ord20_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 4
+                Hd = Lowpass_FIR_max_flat_ord40_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 5
+                Hd = Lowpass_FIR_max_flat_ord72_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 6
+                Hd = Lowpass_FIR_win_cheby_ord100_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 7
+                Hd = Lowpass_FIR_win_bartlethanning_ord100_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 8
+                Hd = Lowpass_IIR_butterw_ord12_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 9
+                d1 = designfilt('lowpassiir','FilterOrder',12,'HalfPowerFrequency',40,'DesignMethod','butter','SampleRate',250);
+                C3.ecg.data = filtfilt(d1,C3.ecg.data);
             end
             % RESP
             % if Resp data is available
@@ -3610,8 +3650,36 @@ function initializeFiltering(C3, fileFormat, hECGhighpassCheckbox, hRespHighpass
         % 16bit data
         otherwise
             % ECG
-            %16bit ECG was already highpass filtered in C3 device, so not optional
+            % 16bit ECG was already highpass filtered in C3 device, and
+            % highpass will be deselected upon loading of BLE 16bit, and
+            % BIN folder, meaning highpass can be skipped in initializeFiltering.
             C3.ecg.data = C3.ecg.dataRaw; % "Raw" not really raw here
+            % Lowpass filtering
+            if hPopupEcgLowPass.Value == 2
+                Hd = Lowpass_FIR_max_flat_ord10_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 3
+                Hd = Lowpass_FIR_max_flat_ord20_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 4
+                Hd = Lowpass_FIR_max_flat_ord40_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 5
+                Hd = Lowpass_FIR_max_flat_ord72_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 6
+                Hd = Lowpass_FIR_win_cheby_ord100_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 7
+                Hd = Lowpass_FIR_win_bartlethanning_ord100_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 8
+                Hd = Lowpass_IIR_butterw_ord12_fc40Hz_fs250Hz;
+                C3.ecg.data = filter(Hd,C3.ecg.data);
+            elseif hPopupEcgLowPass.Value == 9
+                d1 = designfilt('lowpassiir','FilterOrder',12,'HalfPowerFrequency',40,'DesignMethod','butter','SampleRate',250);
+                C3.ecg.data = filtfilt(d1,C3.ecg.data);
+            end
             % RESP
             % if Resp data is available
             if ~isempty(C3.resp.dataRaw)
@@ -3647,19 +3715,33 @@ function initializeFiltering(C3, fileFormat, hECGhighpassCheckbox, hRespHighpass
     end
 end
 
-function filterToggleFunc(~, ~, C3, fileFormat, signalName, gS, hECGhighpassCheckbox, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox)
+function filterToggleFunc(~, ~, C3, fileFormat, signalName, gS, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox)
     switch signalName
         case 'ecg'
             if ~isempty(C3.ecg.data)
                 C3.ecg.data = C3.ecg.dataRaw;
                 % ECG highpass filter option
-                if hECGhighpassCheckbox.Value == 1
-                    switch fileFormat% 24bit data
-                        case 'BLE 24bit'
-                            C3.ecg.data = filterEcgHighpass(C3);
-                        otherwise
-                            % Nada
-                    end
+                if hPopupEcgHighPass.Value == 2
+                    hF = designfilt('highpassiir','FilterOrder',1,'HalfPowerFrequency',0.32,'DesignMethod','butter','SampleRate',250);
+                    C3.ecg.data = filter(hF,C3.ecg.data);
+                elseif hPopupEcgHighPass.Value == 3
+                    hF = designfilt('highpassiir','FilterOrder',2,'HalfPowerFrequency',0.32,'DesignMethod','butter','SampleRate',250);
+                    C3.ecg.data = filter(hF,C3.ecg.data);
+                elseif hPopupEcgHighPass.Value == 4
+                    hF = designfilt('highpassiir','FilterOrder',2,'HalfPowerFrequency',0.32,'DesignMethod','butter','SampleRate',250);
+                    C3.ecg.data = filtfilt(hF,C3.ecg.data);
+                elseif hPopupEcgHighPass.Value == 5
+                    hF = designfilt('highpassiir','FilterOrder',1,'HalfPowerFrequency',0.5,'DesignMethod','butter','SampleRate',250);
+                    C3.ecg.data = filtfilt(hF,C3.ecg.data);
+                elseif hPopupEcgHighPass.Value == 6
+                    hF = designfilt('highpassiir','FilterOrder',2,'HalfPowerFrequency',0.5,'DesignMethod','butter','SampleRate',250);
+                    C3.ecg.data = filtfilt(hF,C3.ecg.data);
+                elseif hPopupEcgHighPass.Value == 7
+                    hF = designfilt('highpassiir','FilterOrder',6,'HalfPowerFrequency',0.5,'DesignMethod','butter','SampleRate',250);
+                    C3.ecg.data = filtfilt(hF,C3.ecg.data);
+                elseif hPopupEcgHighPass.Value == 8
+                    hF = designfilt('highpassiir','FilterOrder',12,'HalfPowerFrequency',0.5,'DesignMethod','butter','SampleRate',250);
+                    C3.ecg.data = filtfilt(hF,C3.ecg.data);
                 end
                 % Lowpass filtering
                 if hPopupEcgLowPass.Value == 2
@@ -3740,7 +3822,7 @@ function filterToggleFunc(~, ~, C3, fileFormat, signalName, gS, hECGhighpassChec
     end
 end
 
-% ECG highpass
+% ECG highpass (implementation in C3 firmware, before switch to 24bit ECG)
 function filteredData = filterEcgHighpass(C3)
     filteredData(size(C3.ecg.data,1),size(C3.ecg.data,2)) = 0;
     multiplier = (127 / 128);
@@ -3758,7 +3840,7 @@ function filteredData = filterEcgHighpass(C3)
     end
 end
 
-% Resp highpass
+% Resp highpass (implementation in C3 firmware, before switch to 24bit Resp)
 function filteredData = filterRespHighpass(C3)
     filteredData(size(C3.resp.data,1),size(C3.resp.data,2)) = 0;
     multiplier = (255 / 256);

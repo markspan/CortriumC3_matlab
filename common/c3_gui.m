@@ -1777,7 +1777,7 @@ hPanelLogo = uipanel('Parent',hPanelMain,...
     'BackgroundColor',panelColor);
 
 % load Cortrium logo image
-logo_cortrium_path = [cortrium_matlab_scripts_root_path '\bin\Cortrium_logo_w_pod_187x55px.png'];
+logo_cortrium_path = [cortrium_matlab_scripts_root_path filesep 'bin' filesep 'Cortrium_logo_w_pod_187x55px.png'];
 if exist(logo_cortrium_path, 'file') == 2
     [logoCortriumImgData.img, logoCortriumImgData.map, logoCortriumImgData.alpha] = imread(logo_cortrium_path);
 else

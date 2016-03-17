@@ -452,6 +452,7 @@ hPopupEcgHighPass = uicontrol('Parent',hPanelFilterECG,...
                 'Highpass, (forward+reverse) IIR, butterw, N 6, fc 0.5Hz, fs 250Hz',...
                 'Highpass, (forward+reverse) IIR, butterw, N 12, fc 0.5Hz, fs 250Hz'},...
     'FontSize',8,...
+    'Value',5,...
     'Callback',{@filterIntermediateToggleFunc,'ecg'});
 
 % Popup menu, for selecting ECG Lowpass filter
@@ -472,13 +473,230 @@ hPopupEcgLowPass = uicontrol('Parent',hPanelFilterECG,...
     'FontSize',8,...
     'Callback',{@filterIntermediateToggleFunc,'ecg'});
 
+% Sub-panel for ECG NaN filters
+hPanelEcgNan = uipanel('Parent',hPanelFilterData,...
+    'Title','ECG - replace with NaN',...
+    'BorderType','etchedin',... %
+    'HighlightColor',panelBorderColor,...
+    'Units','normalized',...
+    'Position',[0.05 0.43 0.9 0.3],...
+    'BackgroundColor',panelColor);
+
+% Checkbox, toggles ECG NaN missing packets
+hEcgNanMissPackCheckbox = uicontrol('Parent',hPanelEcgNan,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.025,0.84,0.075,0.14],...
+    'Value',1,...
+    'Enable','on',...
+    'BackgroundColor',panelColor,...
+    'Callback',{@filterIntermediateToggleFunc,'ecg'});
+
+% Text label, for ECG NaN missing packets
+uicontrol('Parent',hPanelEcgNan,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.105,0.84,0.65,0.11],...
+    'HorizontalAlignment','left',...
+    'String','Missing packets',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Checkbox, toggles ECG NaN error codes
+hEcgNanErrCodesCheckbox = uicontrol('Parent',hPanelEcgNan,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.025,0.68,0.075,0.14],...
+    'Value',0,...
+    'Enable','on',...
+    'BackgroundColor',panelColor,...
+    'Callback',{@filterIntermediateToggleFunc,'ecg'});
+
+% Text label, for ECG NaN error codes
+uicontrol('Parent',hPanelEcgNan,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.105,0.685,0.65,0.11],...
+    'HorizontalAlignment','left',...
+    'String','Error codes (16bit)',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Checkbox, toggles ECG NaN for abs(ecg) >
+hEcgNanAbsEcgCheckbox = uicontrol('Parent',hPanelEcgNan,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.025,0.52,0.075,0.14],...
+    'Value',0,...
+    'Enable','on',...
+    'BackgroundColor',panelColor,...
+    'Callback',{@filterIntermediateToggleFunc,'ecg'});
+
+% Text label, for ECG NaN abs(ecg) >
+uicontrol('Parent',hPanelEcgNan,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.105,0.52,0.3,0.11],...
+    'HorizontalAlignment','left',...
+    'String','Abs(ECG) >',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text-edit for entering absolute value for setting ECG to NaN
+hEcgNanAbsEcg = uicontrol('Parent',hPanelEcgNan,...
+    'Style','edit',...
+    'Enable','on',...
+    'Units','normalized',...
+    'Position',[0.355,0.51,0.14,0.14],...
+    'String','25000',...
+    'HorizontalAlignment','center',...
+    'FontSize',8,...
+    'BackgroundColor',editColor,...
+    'Callback',{@filterIntermediateToggleFunc,'ecg'});
+
+% Text label, for ECG abs value window size
+uicontrol('Parent',hPanelEcgNan,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.105,0.35,0.5,0.13],...
+    'HorizontalAlignment','left',...
+    'String','Abs(ECG) window size:',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text-edit for entering ECG abs value window size
+hEcgAbsValWinSize = uicontrol('Parent',hPanelEcgNan,...
+    'Style','edit',...
+    'Enable','on',...
+    'Units','normalized',...
+    'Position',[0.6,0.36,0.14,0.14],...
+    'String','250',...
+    'HorizontalAlignment','center',...
+    'FontSize',8,...
+    'BackgroundColor',editColor,...
+    'Callback',{@filterIntermediateToggleFunc,'ecg'});
+
+% Text label, for ECG abs value window size, indicating the number refers to samples"
+uicontrol('Parent',hPanelEcgNan,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.75,0.35,0.5,0.13],...
+    'HorizontalAlignment','left',...
+    'String','samples',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Checkbox, toggles ECG NaN Accel mag
+hEcgNanAccMagCheckbox = uicontrol('Parent',hPanelEcgNan,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.025,0.17,0.075,0.17],...
+    'Value',0,...
+    'Enable','on',...
+    'BackgroundColor',panelColor,...
+    'Callback',{@filterIntermediateToggleFunc,'ecg'});
+
+% Text label, for ECG NaN Accel mag
+uicontrol('Parent',hPanelEcgNan,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.105,0.16,0.3,0.14],...
+    'HorizontalAlignment','left',...
+    'String','Accel mag <',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text-edit for entering min Accel mag criteria for setting ECG to NaN
+hEcgNanMinAccMag = uicontrol('Parent',hPanelEcgNan,...
+    'Style','edit',...
+    'Enable','on',...
+    'Units','normalized',...
+    'Position',[0.355,0.18,0.14,0.14],...
+    'String','0.95',...
+    'HorizontalAlignment','center',...
+    'FontSize',8,...
+    'BackgroundColor',editColor,...
+    'Callback',{@filterIntermediateToggleFunc,'ecg'});
+
+% Text label, for ECG NaN Accel mag, between fields for min/max Accel mag
+uicontrol('Parent',hPanelEcgNan,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.51,0.16,0.1,0.14],...
+    'HorizontalAlignment','left',...
+    'String','or >',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text-edit for entering max Accel mag criteria for setting ECG to NaN
+hEcgNanMaxAccMag = uicontrol('Parent',hPanelEcgNan,...
+    'Style','edit',...
+    'Enable','on',...
+    'Units','normalized',...
+    'Position',[0.6,0.18,0.14,0.14],...
+    'String','1.05',...
+    'HorizontalAlignment','center',...
+    'FontSize',8,...
+    'BackgroundColor',editColor,...
+    'Callback',{@filterIntermediateToggleFunc,'ecg'});
+
+% Text label, for ECG NaN Accel mag window size
+uicontrol('Parent',hPanelEcgNan,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.105,0.02,0.5,0.13],...
+    'HorizontalAlignment','left',...
+    'String','Accel mag window size:',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text-edit for entering Accel mag window size
+hEcgNanAccMagWinSize = uicontrol('Parent',hPanelEcgNan,...
+    'Style','edit',...
+    'Enable','on',...
+    'Units','normalized',...
+    'Position',[0.6,0.02,0.14,0.14],...
+    'String','50',...
+    'HorizontalAlignment','center',...
+    'FontSize',8,...
+    'BackgroundColor',editColor,...
+    'Callback',{@filterIntermediateToggleFunc,'ecg'});
+
+% Text label, for ECG NaN Accel mag window size, indicating the numbers refers to packets
+uicontrol('Parent',hPanelEcgNan,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.75,0.02,0.5,0.13],...
+    'HorizontalAlignment','left',...
+    'String','packets',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
 % Sub-panel for Resp filters
 hPanelFilterResp = uipanel('Parent',hPanelFilterData,...
     'Title','Resp',...
     'BorderType','etchedin',... %
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
-    'Position',[0.05 0.61 0.9 0.12],...
+    'Position',[0.05 0.3 0.9 0.12],...
     'BackgroundColor',panelColor);
 
 % Checkbox, toggles Resp highpass filter (only for 24bit data)
@@ -531,7 +749,7 @@ hPanelFilterAccel = uipanel('Parent',hPanelFilterData,...
     'BorderType','etchedin',... %
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
-    'Position',[0.05 0.48 0.9 0.12],...
+    'Position',[0.05 0.17 0.9 0.12],...
     'BackgroundColor',panelColor);
 
 % Checkbox, toggles Accel remove-jitter filter
@@ -584,7 +802,7 @@ hPanelFilterTemp = uipanel('Parent',hPanelFilterData,...
     'BorderType','etchedin',... %
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
-    'Position',[0.05 0.39 0.9 0.08],...
+    'Position',[0.05 0.08 0.9 0.08],...
     'BackgroundColor',panelColor);
 
 % Checkbox, toggles Temp remove-jitter filter
@@ -714,7 +932,7 @@ hEventListBox = uicontrol('Parent',hPanelEventAnnotation,...
 
 % Sub-panel for editing and saving marker list
 hPanelEventMarkerEditSave = uipanel('Parent',hPanelEventAnnotation,...
-    'Title','Delete/Edit a maker, Save list',...
+    'Title','Delete/Edit a marker, Save list',...
     'BorderType','etchedin',... %
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
@@ -2055,11 +2273,11 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         % Initialize filtering checkboxes, based on what options the
         % current fileFormat offers (e.g. 16bit ECG and Resp data from C3 
         % already has highpass filtering, therefore it can not be disabled).
-        initializeFilterSelections(fileFormat, hPopupEcgHighPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox);
+        initializeFilterSelections(fileFormat, hPopupEcgHighPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox, hEcgNanMissPackCheckbox, hEcgNanErrCodesCheckbox);
         
         %----- FILTERING -----%        
         % Filter the data (or leave raw) depending on the selected filter checkboxes
-        initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox);
+        initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox, hEcgNanMissPackCheckbox, hEcgNanErrCodesCheckbox, hEcgNanAccMagCheckbox, hEcgNanMinAccMag, hEcgNanMaxAccMag, hEcgNanAbsEcgCheckbox, hEcgNanAbsEcg, hEcgNanAccMagWinSize, hEcgAbsValWinSize);
         
         fprintf('loadAndFormatData: %f seconds\n',toc(hTic_loadAndFormatData));
     end
@@ -2386,7 +2604,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     function filterIntermediateToggleFunc(hUiCtrl, uiEventData, signalName)
         % if we have Accel data, then we have at least some other data too, and can proceed to filtering
         if size(C3.accel,1) ~= 0
-            filterToggleFunc(hUiCtrl, uiEventData, C3, fileFormat, signalName, gS, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox);
+            filterToggleFunc(hUiCtrl, uiEventData, C3, fileFormat, signalName, gS, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox, hEcgNanMissPackCheckbox, hEcgNanErrCodesCheckbox, hEcgNanAccMagCheckbox, hEcgNanMinAccMag, hEcgNanMaxAccMag, hEcgNanAbsEcgCheckbox, hEcgNanAbsEcg, hEcgNanAccMagWinSize, hEcgAbsValWinSize);
             switch signalName
                 case 'ecg'
                     ecgPlotFunc;
@@ -2471,8 +2689,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         if ~isempty(eventMarkers) && ~isempty(hEventListBox.Value)
             % Edit only one selection at a time.
             if length(hEventListBox.Value) == 1
+                existingStr = eventMarkers(hEventListBox.Value).description;
                 options.Resize='on';
-                answer = inputdlg('Enter new description:','Edit selected entry',1,{''},options);
+                answer = inputdlg('Enter new description:','Edit selected entry',1,{existingStr},options);
                 if ~isempty(answer)
                     eventMarkers(hEventListBox.Value).description = answer{1,1};
                     updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,hEventListBox.Value);
@@ -2638,8 +2857,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         if ~isempty(reportIOmarkers) && ~isempty(hECGkitListBox.Value)
             % Edit only one selection at a time. The top entry, 'Displayed range', can not be edited.
             if length(hECGkitListBox.Value) == 1 && hECGkitListBox.Value(1) ~= 1
+                existingStr = reportIOmarkers(hECGkitListBox.Value-1).description;
                 options.Resize='on';
-                answer = inputdlg('Enter new description:','Edit selected entry',1,{''},options);
+                answer = inputdlg('Enter new description:','Edit selected entry',1,{existingStr},options);
                 if ~isempty(answer)
                     reportIOmarkers(hECGkitListBox.Value-1).description = answer{1,1};
                     updateEcgkitListbox(hECGkitListBox,reportIOmarkers,xAxisTimeStamps,timeBase,hECGkitListBox.Value);
@@ -2672,7 +2892,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
     function genECGkitAnalyseFunc(~,~)
-        genECGkitReport(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path);
+        genECGkitReport(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path,fileFormat);
     end
 
     function exportECGtoMITfilesFunc(~,~)
@@ -2681,7 +2901,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         else
             rangeStr = 'full';
         end
-        exportECGtoMITfiles(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hExportEcg1Checkbox,hExportEcg2Checkbox,hExportEcg3Checkbox,full_path,rangeStr,'export');
+        exportECGtoMITfiles(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hExportEcg1Checkbox,hExportEcg2Checkbox,hExportEcg3Checkbox,full_path,rangeStr,'export',fileFormat);
     end
 
     function exportECGtoCSVfileFunc(~,~)
@@ -2792,7 +3012,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'Accel');
         plotOptions = getPlotOptions(timeBase);
         hAccelFig = figure('Numbertitle','off','Name',['Acceleration   Source: ' char(sourceName)], 'OuterPosition', [winXpos winYpos winWidth winHeight]);
-        hAxesAccelWindow = axes('Parent',hAccelFig,'Position',[0.06,0.09,0.9,0.85], 'Box', 'on');
+        hAxesAccelWindow = axes('Parent',hAccelFig,'Position',[0.06,0.09,0.9,0.85], 'Box', 'on'); % [0.025,0.09,0.96,0.85]
         hold on;
         % build a cell array for the plot legend, and plot according to selected checkboxes
         legendList = cell(0);
@@ -2834,7 +3054,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         title('Acceleration','FontSize',12,'FontWeight','bold');
         hAxesAccelWindow.XLim = [datenum(xAxisTimeStamp(rangeStartIndex.Accel)) datenum(xAxisTimeStamp(rangeEndIndex.Accel))];
         xlabel(['time (' timeBase ')'],'FontSize',10);
-        ylabel('sample value','FontSize',10);
+        ylabel('g-force','FontSize',10);
         legend(hAxesAccelWindow,legendList);
         set(hAxesAccelWindow,'FontSize',10);
         %hAccelFig.Visible = 'on';
@@ -2877,7 +3097,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         hAxesTempWindow.XLim = [datenum(xAxisTimeStamp(rangeStartIndex.Temp)) datenum(xAxisTimeStamp(rangeEndIndex.Temp))];
         title('Temperature','FontSize',12,'FontWeight','bold');
         xlabel(['time (' timeBase ')'],'FontSize',10);
-        ylabel('sample value','FontSize',10);
+        ylabel('degrees Celsius','FontSize',10);
         legend(hAxesTempWindow,legendList);
         set(hAxesTempWindow,'FontSize',10);
         %hTempFig.Visible = 'on';
@@ -3533,7 +3753,7 @@ function clearAxes(axesObjHandles)
     end
 end
 
-function initializeFilterSelections(fileFormat, hPopupEcgHighPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox)
+function initializeFilterSelections(fileFormat, hPopupEcgHighPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox, hEcgNanMissPackCheckbox, hEcgNanErrCodesCheckbox)
     switch fileFormat
         case 'BLE 24bit'
             % enable all filter checkboxes for 24bit data, but leave selection as is
@@ -3543,7 +3763,10 @@ function initializeFilterSelections(fileFormat, hPopupEcgHighPass, hRespHighpass
             hAccelJitterCheckbox.Enable = 'on';
             hAccelMedianCheckbox.Enable = 'on';
             hTempJitterCheckbox.Enable = 'on';
-        otherwise
+            hEcgNanMissPackCheckbox.Enable = 'on';
+            hEcgNanErrCodesCheckbox.Enable = 'off';
+            hEcgNanErrCodesCheckbox.Value = 0;
+        case 'BLE 16bit'
             % disable but select ECG and Resp Highpass filter checkboxes
             % for 16bit data (forcing them to stay selected, since we don't have the raw data anyway)
             hPopupEcgHighPass.String{1} = 'Highpass was already preapplied by C3';
@@ -3554,10 +3777,27 @@ function initializeFilterSelections(fileFormat, hPopupEcgHighPass, hRespHighpass
             hAccelJitterCheckbox.Enable = 'on';
             hAccelMedianCheckbox.Enable = 'on';
             hTempJitterCheckbox.Enable = 'on';
+            hEcgNanMissPackCheckbox.Enable = 'on';
+            hEcgNanErrCodesCheckbox.Enable = 'on';
+        otherwise % folders with .bin-files (currently, 2016-02-29, that exclusively means 16bit ECG and Resp)
+            % disable but select ECG and Resp Highpass filter checkboxes
+            % for 16bit data (forcing them to stay selected, since we don't have the raw data anyway)
+            hPopupEcgHighPass.String{1} = 'Highpass was already preapplied by C3';
+            hPopupEcgHighPass.Value = 1;
+            hRespHighpassCheckbox.Enable = 'off';
+            hRespHighpassCheckbox.Value = 1;
+            hRespLowpassCheckbox.Enable = 'on';
+            hAccelJitterCheckbox.Enable = 'on';
+            hAccelMedianCheckbox.Enable = 'on';
+            hTempJitterCheckbox.Enable = 'on';
+            % No info avialable about missing packets, when source is .bin-files
+            hEcgNanMissPackCheckbox.Enable = 'off';
+            hEcgNanMissPackCheckbox.Value = 0;
+            hEcgNanErrCodesCheckbox.Enable = 'on';
     end
 end
 
-function initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox)
+function initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox, hEcgNanMissPackCheckbox, hEcgNanErrCodesCheckbox, hEcgNanAccMagCheckbox, hEcgNanMinAccMag, hEcgNanMaxAccMag, hEcgNanAbsEcgCheckbox, hEcgNanAbsEcg, hEcgNanAccMagWinSize, hEcgAbsValWinSize)
     switch fileFormat
         % 24bit data
         case 'BLE 24bit'
@@ -3612,6 +3852,43 @@ function initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass
                 d1 = designfilt('lowpassiir','FilterOrder',12,'HalfPowerFrequency',40,'DesignMethod','butter','SampleRate',250);
                 C3.ecg.data = filtfilt(d1,C3.ecg.data);
             end
+            % Replace with NaN
+            if hEcgNanMissPackCheckbox.Value == 1 %NOTE: no good with .bin files, since serialNumber is not available!
+                % calculate ECG indices of missed batches
+                startOfMissed_ecgIdx = ((C3.missingSerials-1)*6)+1;
+                endOfMissed_ecgIdx = C3.missingSerials*6;
+                % get complete array of indices, by using coloncat function
+                ecgIdx = coloncat(startOfMissed_ecgIdx, endOfMissed_ecgIdx);
+                % set ECG to NaN at those indices
+                C3.ecg.data(ecgIdx,:) = NaN;
+            end
+            if hEcgNanErrCodesCheckbox.Value == 1
+                % Find error codes in the 'raw' data (since filtering may have modified the original error code values)
+                C3.ecg.data(abs(C3.ecg.dataRaw) > 32765,:) = NaN;
+            end
+            if hEcgNanAbsEcgCheckbox.Value == 1
+                absEcgVal = getFloatVal(hEcgNanAbsEcg);
+                winSize = getIntVal(hEcgAbsValWinSize);
+                if winSize < 3 || winSize >= length(C3.ecg.data)
+                    warndlg(sprintf('Abs(ECG) window size must be > 2 and < %d\n\nSetting window size to 250',length(C3.ecg.data)));
+                    hEcgAbsValWinSize.String = '250';
+                    winSize = 250;
+                end
+                % create indices to match window size
+                startIdxEcg = 1:winSize:length(C3.ecg.data);
+                endIdxEcg = winSize:winSize:length(C3.ecg.data);
+                % make sure the end index is included
+                if length(endIdxEcg) == length(startIdxEcg)-1
+                    endIdxEcg(length(endIdxEcg)+1) = length(C3.ecg.data);
+                end
+                % go through all windows to find those that meet the abs(value) criteria
+                for ii=1:length(startIdxEcg)
+                    if nanmax(nanmax(abs(C3.ecg.data(startIdxEcg(ii):endIdxEcg(ii),:)))) > absEcgVal
+                        % set ECG to NaN at those indices
+                        C3.ecg.data(startIdxEcg(ii):endIdxEcg(ii),:) = NaN;
+                    end
+                end
+            end
             % RESP
             % if Resp data is available
             if ~isempty(C3.resp.dataRaw)
@@ -3647,6 +3924,42 @@ function initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass
                 filter_length = 10;
                 C3.temp.remove_jitter(filter_length);
             end
+            % ECG NaN, based on Accel mag, placed here, after C3.accel.data is initialized
+            if hEcgNanAccMagCheckbox.Value == 1
+                minAccMag = getFloatVal(hEcgNanMinAccMag);
+                maxAccMag = getFloatVal(hEcgNanMaxAccMag);
+                winSize = getIntVal(hEcgNanAccMagWinSize);
+                if winSize < 3 || winSize >= length(C3.accel.data)
+                    warndlg(sprintf('Accel mag window size must be > 2 and < %d\n\nSetting window size to 5',length(C3.accel.data)));
+                    hEcgNanAccMagWinSize.String = '5';
+                    winSize = 5;
+                end
+                if minAccMag < maxAccMag && minAccMag > 0 && maxAccMag > 1
+                    % create indices to match window size
+                        startIdxAcc = 1:winSize:length(C3.accelmag.data);
+                        endIdxAcc = winSize:winSize:length(C3.accelmag.data);
+                        % make sure the end index is included
+                        if length(endIdxAcc) == length(startIdxAcc)-1
+                            endIdxAcc(length(endIdxAcc)+1) = length(C3.accelmag.data);
+                        end
+                        % go through all windows to find those that meet the magnitude criteria
+                        idxAccMagTrue(length(startIdxAcc)) = false;
+                        for ii=1:length(startIdxAcc)
+                            if nanmin(C3.accelmag.data(startIdxAcc(ii):endIdxAcc(ii))) < minAccMag || nanmax(C3.accelmag.data(startIdxAcc(ii):endIdxAcc(ii))) > maxAccMag
+                                idxAccMagTrue(ii) = true;
+                            end
+                        end
+                        % calculate corresponding ECG indices
+                        startOfAccMag_ecgIdx = ((startIdxAcc(idxAccMagTrue)-1)*6)+1;
+                        endOfAccMag_ecgIdx = endIdxAcc(idxAccMagTrue)*6;
+                        % get complete array of indices, by using coloncat function
+                        ecgIdx = coloncat(startOfAccMag_ecgIdx,endOfAccMag_ecgIdx);
+                        % set ECG to NaN at those indices
+                        C3.ecg.data(ecgIdx,:) = NaN;
+                else
+                    warndlg(sprintf('Minimum Accel mag value should be > 0, and maximum value > 1,\nand minimum Accel mag value should be < maximum accel mag value.'));
+                end
+            end
         % 16bit data
         otherwise
             % ECG
@@ -3680,6 +3993,44 @@ function initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass
                 d1 = designfilt('lowpassiir','FilterOrder',12,'HalfPowerFrequency',40,'DesignMethod','butter','SampleRate',250);
                 C3.ecg.data = filtfilt(d1,C3.ecg.data);
             end
+            % Replace with NaN
+            if hEcgNanMissPackCheckbox.Value == 1 %NOTE: no good with .bin files, since serialNumber is not available!
+                % calculate ECG start/end-indices of missed batches
+                startOfMissed_ecgIdx = ((C3.missingSerials-1)*10)+1;
+                endOfMissed_ecgIdx = C3.missingSerials*10;
+                % get complete array of indices, by using coloncat function
+                ecgIdx = coloncat(startOfMissed_ecgIdx, endOfMissed_ecgIdx);
+                % set ECG to NaN at those indices
+                C3.ecg.data(ecgIdx,:) = NaN;
+            end
+            if hEcgNanErrCodesCheckbox.Value == 1
+                % Find error codes in the 'raw' data (since filtering may have modified the original error code values)
+                % Only meaningful for 16bit data
+                C3.ecg.data(abs(C3.ecg.dataRaw) > 32765,:) = NaN;
+            end
+            if hEcgNanAbsEcgCheckbox.Value == 1
+                absEcgVal = getFloatVal(hEcgNanAbsEcg);
+                winSize = getIntVal(hEcgAbsValWinSize);
+                if winSize < 3 || winSize >= length(C3.ecg.data)
+                    warndlg(sprintf('Abs(ECG) window size must be > 2 and < %d\n\nSetting window size to 250',length(C3.ecg.data)));
+                    hEcgAbsValWinSize.String = '250';
+                    winSize = 250;
+                end
+                % create indices to match window size
+                startIdxEcg = 1:winSize:length(C3.ecg.data);
+                endIdxEcg = winSize:winSize:length(C3.ecg.data);
+                % make sure the end index is included
+                if length(endIdxEcg) == length(startIdxEcg)-1
+                    endIdxEcg(length(endIdxEcg)+1) = length(C3.ecg.data);
+                end
+                % go through all windows to find those that meet the abs(value) criteria
+                for ii=1:length(startIdxEcg)
+                    if nanmax(nanmax(abs(C3.ecg.data(startIdxEcg(ii):endIdxEcg(ii),:)))) > absEcgVal
+                        % set ECG to NaN at those indices
+                        C3.ecg.data(startIdxEcg(ii):endIdxEcg(ii),:) = NaN;
+                    end
+                end
+            end
             % RESP
             % if Resp data is available
             if ~isempty(C3.resp.dataRaw)
@@ -3705,6 +4056,42 @@ function initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass
                 C3.accel.data = medfilt1(C3.accel.data,round(C3.accel.fs));
                 C3.accelmag.data = medfilt1(C3.accelmag.data,round(C3.accelmag.fs));
             end
+            % ECG NaN, based on Accel mag, placed here, after C3.accel.data is initialized
+            if hEcgNanAccMagCheckbox.Value == 1
+                minAccMag = getFloatVal(hEcgNanMinAccMag);
+                maxAccMag = getFloatVal(hEcgNanMaxAccMag);
+                winSize = getIntVal(hEcgNanAccMagWinSize);
+                if winSize < 3 || winSize >= length(C3.accel.data)
+                    warndlg(sprintf('Accel mag window size must be > 2 and < %d\n\nSetting window size to 5',length(C3.accel.data)));
+                    hEcgNanAccMagWinSize.String = '5';
+                    winSize = 5;
+                end
+                if minAccMag < maxAccMag && minAccMag > 0 && maxAccMag > 1
+                    % create indices to match window size
+                        startIdxAcc = 1:winSize:length(C3.accelmag.data);
+                        endIdxAcc = winSize:winSize:length(C3.accelmag.data);
+                        % make sure the end index is included
+                        if length(endIdxAcc) == length(startIdxAcc)-1
+                            endIdxAcc(length(endIdxAcc)+1) = length(C3.accelmag.data);
+                        end
+                        % go through all windows to find those that meet the magnitude criteria
+                        idxAccMagTrue(length(startIdxAcc)) = false;
+                        for ii=1:length(startIdxAcc)
+                            if nanmin(C3.accelmag.data(startIdxAcc(ii):endIdxAcc(ii))) < minAccMag || nanmax(C3.accelmag.data(startIdxAcc(ii):endIdxAcc(ii))) > maxAccMag
+                                idxAccMagTrue(ii) = true;
+                            end
+                        end
+                        % calculate corresponding ECG indices
+                        startOfAccMag_ecgIdx = ((startIdxAcc(idxAccMagTrue)-1)*10)+1;
+                        endOfAccMag_ecgIdx = endIdxAcc(idxAccMagTrue)*10;
+                        % get complete array of indices, by using coloncat function
+                        ecgIdx = coloncat(startOfAccMag_ecgIdx,endOfAccMag_ecgIdx);
+                        % set ECG to NaN at those indices
+                        C3.ecg.data(ecgIdx,:) = NaN;
+                else
+                    warndlg(sprintf('Minimum Accel mag value should be > 0, and maximum value > 1,\nand minimum Accel mag value should be < maximum accel mag value.'));
+                end
+            end
             % TEMP
             C3.temp.data = C3.temp.dataRaw;
             % Temp jitter filter option
@@ -3715,7 +4102,7 @@ function initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass
     end
 end
 
-function filterToggleFunc(~, ~, C3, fileFormat, signalName, gS, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox)
+function filterToggleFunc(~, ~, C3, fileFormat, signalName, gS, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox, hEcgNanMissPackCheckbox, hEcgNanErrCodesCheckbox, hEcgNanAccMagCheckbox, hEcgNanMinAccMag, hEcgNanMaxAccMag, hEcgNanAbsEcgCheckbox, hEcgNanAbsEcg, hEcgNanAccMagWinSize, hEcgAbsValWinSize)
     switch signalName
         case 'ecg'
             if ~isempty(C3.ecg.data)
@@ -3778,6 +4165,91 @@ function filterToggleFunc(~, ~, C3, fileFormat, signalName, gS, hPopupEcgHighPas
                 end
                 if gS.flipEcg3
                     C3.ecg.data(:,3) = C3.ecg.data(:,3) - (2 * C3.ecg.data(:,3));
+                end
+                % Replace with NaN
+                if hEcgNanMissPackCheckbox.Value == 1 %NOTE: no good with .bin files, since serialNumber is not available!
+                    % calculate ECG indices of missed batches
+                    switch fileFormat% 24bit data
+                        case 'BLE 24bit'
+                            startOfMissed_ecgIdx = ((C3.missingSerials-1)*6)+1;
+                            endOfMissed_ecgIdx = C3.missingSerials*6;
+                        otherwise
+                            startOfMissed_ecgIdx = ((C3.missingSerials-1)*10)+1;
+                            endOfMissed_ecgIdx = C3.missingSerials*10;
+                    end
+                    % get complete array of indices, by using coloncat function
+                    ecgIdx = coloncat(startOfMissed_ecgIdx, endOfMissed_ecgIdx);
+                    % set ECG to NaN at those indices
+                    C3.ecg.data(ecgIdx,:) = NaN;
+                end
+                if hEcgNanErrCodesCheckbox.Value == 1
+                    % Find error codes in the 'raw' data (since filtering may have modified the original error code values)
+                    % Only meaningful for 16bit data
+                    C3.ecg.data(abs(C3.ecg.dataRaw) > 32765,:) = NaN;
+                end
+                if hEcgNanAbsEcgCheckbox.Value == 1
+                    absEcgVal = getFloatVal(hEcgNanAbsEcg);
+                    winSize = getIntVal(hEcgAbsValWinSize);
+                    if winSize < 3 || winSize >= length(C3.ecg.data)
+                        warndlg(sprintf('Abs(ECG) window size must be > 2 and < %d\n\nSetting window size to 250',length(C3.ecg.data)));
+                        hEcgAbsValWinSize.String = '250';
+                        winSize = 250;
+                    end
+                    % create indices to match window size
+                    startIdxEcg = 1:winSize:length(C3.ecg.data);
+                    endIdxEcg = winSize:winSize:length(C3.ecg.data);
+                    % make sure the end index is included
+                    if length(endIdxEcg) == length(startIdxEcg)-1
+                        endIdxEcg(length(endIdxEcg)+1) = length(C3.ecg.data);
+                    end
+                    % go through all windows to find those that meet the abs(value) criteria
+                    for ii=1:length(startIdxEcg)
+                        if nanmax(nanmax(abs(C3.ecg.data(startIdxEcg(ii):endIdxEcg(ii),:)))) > absEcgVal
+                            % set ECG to NaN at those indices
+                            C3.ecg.data(startIdxEcg(ii):endIdxEcg(ii),:) = NaN;
+                        end
+                    end
+                end
+                if hEcgNanAccMagCheckbox.Value == 1
+                    minAccMag = getFloatVal(hEcgNanMinAccMag);
+                    maxAccMag = getFloatVal(hEcgNanMaxAccMag);
+                    winSize = getIntVal(hEcgNanAccMagWinSize);
+                    if winSize < 3 || winSize >= length(C3.accel.data)
+                        warndlg(sprintf('Accel mag window size must be > 2 and < %d\n\nSetting window size to 5',length(C3.accel.data)));
+                        hEcgNanAccMagWinSize.String = '5';
+                        winSize = 5;
+                    end
+                    if minAccMag < maxAccMag && minAccMag > 0 && maxAccMag > 1
+                        % create indices to match window size
+                        startIdxAcc = 1:winSize:length(C3.accelmag.data);
+                        endIdxAcc = winSize:winSize:length(C3.accelmag.data);
+                        % make sure the end index is included
+                        if length(endIdxAcc) == length(startIdxAcc)-1
+                            endIdxAcc(length(endIdxAcc)+1) = length(C3.accelmag.data);
+                        end
+                        % go through all windows to find those that meet the magnitude criteria
+                        idxAccMagTrue(length(startIdxAcc)) = false;
+                        for ii=1:length(startIdxAcc)
+                            if nanmin(C3.accelmag.data(startIdxAcc(ii):endIdxAcc(ii))) < minAccMag || nanmax(C3.accelmag.data(startIdxAcc(ii):endIdxAcc(ii))) > maxAccMag
+                                idxAccMagTrue(ii) = true;
+                            end
+                        end
+                        % calculate corresponding ECG indices
+                        switch fileFormat% 24bit data
+                            case 'BLE 24bit'
+                                startOfAccMag_ecgIdx = ((startIdxAcc(idxAccMagTrue)-1)*6)+1;
+                                endOfAccMag_ecgIdx = endIdxAcc(idxAccMagTrue)*6;
+                            otherwise
+                                startOfAccMag_ecgIdx = ((startIdxAcc(idxAccMagTrue)-1)*10)+1;
+                                endOfAccMag_ecgIdx = endIdxAcc(idxAccMagTrue)*10;
+                        end
+                        % get complete array of indices, by using coloncat function
+                        ecgIdx = coloncat(startOfAccMag_ecgIdx,endOfAccMag_ecgIdx);
+                        % set ECG to NaN at those indices
+                        C3.ecg.data(ecgIdx,:) = NaN;
+                    else
+                        warndlg(sprintf('Minimum Accel mag value should be > 0, and maximum value > 1,\nand minimum Accel mag value should be < maximum accel mag value.'));
+                    end
                 end
             end
         case 'resp'
@@ -3856,7 +4328,7 @@ function filteredData = filterRespHighpass(C3)
     end
 end
 
-function hea_fullpath = exportECGtoMITfiles(C3,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,hEcg1Checkbox,hEcg2Checkbox,hEcg3Checkbox,full_path,rangeStr,contextStr)
+function hea_fullpath = exportECGtoMITfiles(C3,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,hEcg1Checkbox,hEcg2Checkbox,hEcg3Checkbox,full_path,rangeStr,contextStr,fileFormat)
     [source_path,filename_wo_extension,file_extension] = fileparts(full_path);
     if strcmp(contextStr,'export')
         exportMainFolderName = 'MIT_export - ECG';
@@ -3916,7 +4388,7 @@ function hea_fullpath = exportECGtoMITfiles(C3,indexStartECG,indexEndECG,xAxisTi
     end
     if chNum(1) ~= 0
         if strcmp(file_extension,'.bin')
-            filename_wo_extension = 'unknown_ble';
+            filename_wo_extension = 'BIN-folder';
         end
         export_sub_path = [export_main_path filesep filename_wo_extension '_ecg_' chNumStr '_' rangeStr];
         if ~exist(export_sub_path,'dir')
@@ -3928,7 +4400,22 @@ function hea_fullpath = exportECGtoMITfiles(C3,indexStartECG,indexEndECG,xAxisTi
         % change path to export_sub_path, so the .dat and .hea files output by wrsamp.exe will land there
         cd(export_sub_path);
         physiobank_fullpath = exportECGtoPhysiobankFile(C3,idxMin,idxMax,chNum,export_sub_path,filename_wo_extension,contextStr);
-        cmd_str = ['"' bin_path filesep 'wrsamp.exe" -F ' num2str(C3.ecg.fs) ' -i "' physiobank_fullpath '" -o "' filename_wo_extension '"'];
+        % For reference on wrsamp.exe and signal formats, go to:
+        % https://www.physionet.org/physiotools/wag/wrsamp-1.htm
+        % https://www.physionet.org/physiotools/wag/signal-5.htm
+        switch fileFormat
+            % if selected file format is BLE 24bit
+            case 'BLE 24bit'
+                % Output format 24, and gain set at 20972 units pr mV
+                % NOTE: ECGkit does not read 24bit format .dat files, 
+                % so the format must be forced down to 16bit. 
+                % How wrsamp.exe handles overflow, and what the consequences 
+                % are further down the line, is currently (2016-03-15) unknown.
+                cmd_str = ['"' bin_path filesep 'wrsamp.exe" -F ' num2str(C3.ecg.fs) ' -i "' physiobank_fullpath '" -o "' filename_wo_extension '" -O 16 -G 20972'];
+            otherwise
+                % Output format 16, and gain set at 5243 units pr mV
+                cmd_str = ['"' bin_path filesep 'wrsamp.exe" -F ' num2str(C3.ecg.fs) ' -i "' physiobank_fullpath '" -o "' filename_wo_extension '" -O 16 -G 5243'];
+        end        
         [cmd_status,~] = system(cmd_str);
         % go back to previous directory
         cd(currentFolder);
@@ -4108,40 +4595,52 @@ function [gS,eventMarkers] = addEventMarker(timePoint,xAxisTimeStamps,timeBase,g
     hButtonEventMarkerSave.BackgroundColor = editColorGreen;
 end
 
-function genECGkitReport(C3,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path)
+function genECGkitReport(C3,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path,fileFormat)
     if hAnalyseEcg1Checkbox.Value == 0 && hAnalyseEcg2Checkbox.Value == 0 && hAnalyseEcg3Checkbox.Value == 0
         warndlg('No ECG channels selected for analysis!')
         return;
     end
+    % Temporary variable for jsondata, to avoid time-offsets being saved to the JSON file.
+    if ~isempty(jsondata)
+        jsondata_temp = jsondata;
+    else
+        jsondata_temp.start = '';
+    end
+    if strcmp(fileFormat,'BIN (folder)')
+        jsondata_temp.filename = 'BIN-folder';
+    end
+    % If no segment is selected, default to displayed range
     if isempty(hECGkitListBox.Value)
         ecgRanges = [indexStartECG indexEndECG];
         jsonTimeOffsetMillisecs = (indexStartECG/double(C3.ecg.fs)) * 1000;
+        jsonReportNotes = '';
     else
         jsonTimeOffsetMillisecs = zeros(length(hECGkitListBox.Value),1);
         ecgRanges = zeros(length(hECGkitListBox.Value),2);
+        jsonReportNotes = cell(length(hECGkitListBox.Value),1);
         for ii=1:length(hECGkitListBox.Value)
             % if the first item on the list is selected, it means 'Displayed range'
             if hECGkitListBox.Value(ii) == 1
                 ecgRanges(ii,:) = [indexStartECG indexEndECG];
                 jsonTimeOffsetMillisecs(ii) = (ecgRanges(ii,1)/double(C3.ecg.fs)) * 1000;
+                jsonReportNotes{ii,1} = '';
             else
                 % find start and end index numbers, based on the list selection
                 ecgRanges(ii,:) = [reportIOmarkers(hECGkitListBox.Value(ii)-1).inEcgIndex reportIOmarkers(hECGkitListBox.Value(ii)-1).outEcgIndex];
                 jsonTimeOffsetMillisecs(ii) = (ecgRanges(ii,1)/double(C3.ecg.fs)) * 1000;
+                jsonReportNotes{ii,1} = reportIOmarkers(hECGkitListBox.Value(ii)-1).description;
             end
         end
     end
     % For every range, export ECG data to MIT-format (.dat, .hea) files, and call the report script.
-    % Temporary variable for jsondata, to avoid time-offsets being saved to the JSON file.
-    jsondata_temp = jsondata;
-    timeStartOfRecording = C3.date_start;
     for ii=1:size(ecgRanges,1)
-        hea_fullpath = exportECGtoMITfiles(C3,ecgRanges(ii,1),ecgRanges(ii,2),xAxisTimeStamps,timeBase,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,full_path,'displayed','ecgkit');
+        hea_fullpath = exportECGtoMITfiles(C3,ecgRanges(ii,1),ecgRanges(ii,2),xAxisTimeStamps,timeBase,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,full_path,'displayed','ecgkit',fileFormat);
         ecgkit_run(hea_fullpath);
         % call report script if checkbox is set to true
         if hECGkitMakePDFCheckbox.Value == 1
-            timeStartOfThisSegment = datetime(addtodate(timeStartOfRecording,jsonTimeOffsetMillisecs(ii),'millisecond'),'ConvertFrom','datenum','Format','yyyy-MM-dd''T''HH:mm:ss.SSS+0000','TimeZone','UTC');
+            timeStartOfThisSegment = datetime(addtodate(C3.date_start,jsonTimeOffsetMillisecs(ii),'millisecond'),'ConvertFrom','datenum','Format','yyyy-MM-dd''T''HH:mm:ss.SSS+0000','TimeZone','UTC');
             jsondata_temp.start = datestr(timeStartOfThisSegment,'yyyy-mm-ddTHH:MM:SS.FFF+0000');
+            jsondata_temp.reportnote = jsonReportNotes{ii,1};
             pdf_fullpath = ecgReportType1(jsondata_temp, hea_fullpath);
             % open report, if one was created and checkbox is set to true
             if ~isempty(pdf_fullpath) && hECGkitOpenPDFCheckbox.Value == 1
@@ -4338,5 +4837,29 @@ function fftEcgNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveIm
                 print(hFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng','-r90');
             end
         end
+    end
+end
+
+function floatVal = getFloatVal(hEdit)
+    if all(ismember(hEdit.String, '1234567890.'))
+        if isempty(hEdit.String)
+            floatVal = 0;
+        else
+            floatVal = str2double(hEdit.String);
+        end
+    else
+        warndlg('Numerical input is required!');
+    end
+end
+
+function intVal = getIntVal(hEdit)
+    if all(ismember(hEdit.String, '1234567890'))
+        if isempty(hEdit.String)
+            intVal = 0;
+        else
+            intVal = str2double(hEdit.String);
+        end
+    else
+        warndlg('Integer input is required!');
     end
 end

@@ -450,7 +450,9 @@ hPopupEcgHighPass = uicontrol('Parent',hPanelFilterECG,...
                 'Highpass, (forward+reverse) IIR, butterw, N 1, fc 0.5Hz, fs 250Hz',...
                 'Highpass, (forward+reverse) IIR, butterw, N 2, fc 0.5Hz, fs 250Hz',...
                 'Highpass, (forward+reverse) IIR, butterw, N 6, fc 0.5Hz, fs 250Hz',...
-                'Highpass, (forward+reverse) IIR, butterw, N 12, fc 0.5Hz, fs 250Hz'},...
+                'Highpass, (forward+reverse) IIR, butterw, N 12, fc 0.5Hz, fs 250Hz',...
+                'Highpass, (forward+reverse) IIR, butterw, N 1, fc 0.67Hz, fs 250Hz',...
+                'Highpass, (forward+reverse) IIR, butterw, N 2, fc 0.67Hz, fs 250Hz'},...
     'FontSize',8,...
     'Value',5,...
     'Callback',{@filterIntermediateToggleFunc,'ecg'});
@@ -2892,7 +2894,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
     function genECGkitAnalyseFunc(~,~)
-        genECGkitReport(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path,fileFormat);
+        genECGkitReport(C3,sampleRateFactor,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path,fileFormat);
     end
 
     function exportECGtoMITfilesFunc(~,~)
@@ -3005,9 +3007,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         %--- creates a new, floating window for the Acceleration plot ---%
         % get screen size
         screenSize = get(0,'screensize');
-        winXpos = round(screenSize(3)*0.05);
+        winXpos = 0;%round(screenSize(3)*0.05)
         winYpos = round(screenSize(4)*0.5) - round(screenSize(4)*0.3);
-        winWidth = round(screenSize(3)*0.5);
+        winWidth = round(screenSize(3));%*0.5
         winHeight = round(screenSize(4)*0.5);
         xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'Accel');
         plotOptions = getPlotOptions(timeBase);
@@ -3825,6 +3827,12 @@ function initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass
             elseif hPopupEcgHighPass.Value == 8
                 hF = designfilt('highpassiir','FilterOrder',12,'HalfPowerFrequency',0.5,'DesignMethod','butter','SampleRate',250);
                 C3.ecg.data = filtfilt(hF,C3.ecg.data);
+            elseif hPopupEcgHighPass.Value == 9
+                hF = designfilt('highpassiir','FilterOrder',1,'HalfPowerFrequency',0.67,'DesignMethod','butter','SampleRate',250);
+                C3.ecg.data = filtfilt(hF,C3.ecg.data);
+            elseif hPopupEcgHighPass.Value == 10
+                hF = designfilt('highpassiir','FilterOrder',2,'HalfPowerFrequency',0.67,'DesignMethod','butter','SampleRate',250);
+                C3.ecg.data = filtfilt(hF,C3.ecg.data);
             end
             % Lowpass filtering
             if hPopupEcgLowPass.Value == 2
@@ -4128,6 +4136,12 @@ function filterToggleFunc(~, ~, C3, fileFormat, signalName, gS, hPopupEcgHighPas
                     C3.ecg.data = filtfilt(hF,C3.ecg.data);
                 elseif hPopupEcgHighPass.Value == 8
                     hF = designfilt('highpassiir','FilterOrder',12,'HalfPowerFrequency',0.5,'DesignMethod','butter','SampleRate',250);
+                    C3.ecg.data = filtfilt(hF,C3.ecg.data);
+                elseif hPopupEcgHighPass.Value == 9
+                    hF = designfilt('highpassiir','FilterOrder',1,'HalfPowerFrequency',0.67,'DesignMethod','butter','SampleRate',250);
+                    C3.ecg.data = filtfilt(hF,C3.ecg.data);
+                elseif hPopupEcgHighPass.Value == 10
+                    hF = designfilt('highpassiir','FilterOrder',2,'HalfPowerFrequency',0.67,'DesignMethod','butter','SampleRate',250);
                     C3.ecg.data = filtfilt(hF,C3.ecg.data);
                 end
                 % Lowpass filtering
@@ -4512,9 +4526,9 @@ function physiobank_fullpath = exportECGtoPhysiobankFile(C3,indexStartECG,indexE
             if isempty(find(chNum == 3,1))
                 dlmwrite(physiobank_file_for_report, 'MLI MLII', 'delimiter', '');
             elseif isempty(find(chNum == 2,1))
-                dlmwrite(physiobank_file_for_report, 'MLI MLIII', 'delimiter', '');
+                dlmwrite(physiobank_file_for_report, 'MLI MLII', 'delimiter', ''); %'MLI MLIII'
             else
-                dlmwrite(physiobank_file_for_report, 'MLII MLIII', 'delimiter', '');
+                dlmwrite(physiobank_file_for_report, 'MLI MLII', 'delimiter', ''); % 'MLII MLIII'
             end
             fid = fopen(physiobank_file_for_report,'a');
             fprintf(fid,'%f %f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
@@ -4523,35 +4537,25 @@ function physiobank_fullpath = exportECGtoPhysiobankFile(C3,indexStartECG,indexE
             if isempty(find(chNum == 3,1)) && isempty(find(chNum == 2,1))
                 dlmwrite(physiobank_file_for_report, 'MLI', 'delimiter', '');
             elseif isempty(find(chNum == 3,1)) && isempty(find(chNum == 1,1))
-                dlmwrite(physiobank_file_for_report, 'MLII', 'delimiter', '');
+                dlmwrite(physiobank_file_for_report, 'MLI', 'delimiter', ''); % 'MLII'
             else
-                dlmwrite(physiobank_file_for_report, 'MLIII', 'delimiter', '');
+                dlmwrite(physiobank_file_for_report, 'MLI', 'delimiter', ''); % 'MLIII'
             end
             fid = fopen(physiobank_file_for_report,'a');
             fprintf(fid,'%f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
         end
         fclose(fid);
     end
-    % temp file for NaN replacement
-    tmpFile = fullfile(export_sub_path, 'tmpFile.txt');
-    fid = fopen(tmpFile,'a');
+    % physiobank file for wrsamp.exe conversion to .dat
     if length(chNum) == 3
-        fprintf(fid,'%f %f %f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
+        outStr = sprintf('%f %f %f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
     elseif length(chNum) == 2
-        fprintf(fid,'%f %f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
+        outStr = sprintf('%f %f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
     else
-        fprintf(fid,'%f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
+        outStr = sprintf('%f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
     end
-    fclose(fid);
-    fid = fopen(tmpFile,'r');
-    % now read the file back in, and replace 'NaN' with hyphen
-    s = fread(fid,'*char')';
-    fclose(fid);
-    % Turn off recycling, so delete actually means delete, and not "Fill my recycle bin."
-    recycle('off');
-    delete(tmpFile);
-    s = strrep(s,'NaN','-');
-    % write a physiobank file, where NaN is replaced by hyphen 
+    % replace NaN by hyphen
+    outStr = strrep(outStr,'NaN','-');
     physiobank_fullpath = fullfile(export_sub_path, [filename_wo_extension '_physiobank_w_-_for_NaN.txt']);
     % if 3-channel output
     if length(chNum) == 3
@@ -4561,22 +4565,22 @@ function physiobank_fullpath = exportECGtoPhysiobankFile(C3,indexStartECG,indexE
         if isempty(find(chNum == 3,1))
             dlmwrite(physiobank_fullpath, 'MLI MLII', 'delimiter', '');
         elseif isempty(find(chNum == 2,1))
-            dlmwrite(physiobank_fullpath, 'MLI MLIII', 'delimiter', '');
+            dlmwrite(physiobank_fullpath, 'MLI MLII', 'delimiter', ''); % 'MLI MLIII'
         else
-            dlmwrite(physiobank_fullpath, 'MLII MLIII', 'delimiter', '');
+            dlmwrite(physiobank_fullpath, 'MLI MLII', 'delimiter', ''); % 'MLII MLIII'
         end
     % if 1-channel output
     else
         if isempty(find(chNum == 3,1)) && isempty(find(chNum == 2,1))
             dlmwrite(physiobank_fullpath, 'MLI', 'delimiter', '');
         elseif isempty(find(chNum == 3,1)) && isempty(find(chNum == 1,1))
-            dlmwrite(physiobank_fullpath, 'MLII', 'delimiter', '');
+            dlmwrite(physiobank_fullpath, 'MLI', 'delimiter', ''); % 'MLII'
         else
-            dlmwrite(physiobank_fullpath, 'MLIII', 'delimiter', '');
+            dlmwrite(physiobank_fullpath, 'MLI', 'delimiter', ''); % 'MLIII'
         end
     end
     fid = fopen(physiobank_fullpath,'a');
-    fprintf(fid,'%s',s);
+    fprintf(fid,'%s',outStr);
     fclose(fid);
 end
 
@@ -4595,7 +4599,7 @@ function [gS,eventMarkers] = addEventMarker(timePoint,xAxisTimeStamps,timeBase,g
     hButtonEventMarkerSave.BackgroundColor = editColorGreen;
 end
 
-function genECGkitReport(C3,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path,fileFormat)
+function genECGkitReport(C3,sampleRateFactor,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path,fileFormat)
     if hAnalyseEcg1Checkbox.Value == 0 && hAnalyseEcg2Checkbox.Value == 0 && hAnalyseEcg3Checkbox.Value == 0
         warndlg('No ECG channels selected for analysis!')
         return;
@@ -4635,12 +4639,26 @@ function genECGkitReport(C3,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,r
     % For every range, export ECG data to MIT-format (.dat, .hea) files, and call the report script.
     for ii=1:size(ecgRanges,1)
         hea_fullpath = exportECGtoMITfiles(C3,ecgRanges(ii,1),ecgRanges(ii,2),xAxisTimeStamps,timeBase,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,full_path,'displayed','ecgkit',fileFormat);
+        [tmpPath, tmpName, ~] = fileparts(hea_fullpath);
+        % Also export a new JSON file with the "start" field reflecting the
+        % the start time of this segment, and a "reportnote" field added.
+        timeStartOfThisSegment = datetime(addtodate(C3.date_start,jsonTimeOffsetMillisecs(ii),'millisecond'),'ConvertFrom','datenum','Format','yyyy-MM-dd''T''HH:mm:ss.SSS+0000','TimeZone','UTC');
+        jsondata_temp.start = datestr(timeStartOfThisSegment,'yyyy-mm-ddTHH:MM:SS.FFF+0000');
+        jsondata_temp.reportnote = jsonReportNotes{ii,1};
+        savejson('',jsondata_temp,'FileName',fullfile(tmpPath,[tmpName '.json']),'ParseLogical',1);
+        % Export Accel data for this segment. NOTE: Since ECG indices are
+        % currently not constrained to match up with whole BLE packages,
+        % there will be a slight mismatch between ECG sample count and
+        % Accel sample count (after considering the sampleRateFactor).
+        accelStartIdx = ceil(ecgRanges(ii,1)/sampleRateFactor.ECG);
+        accelEndIdx = ceil(ecgRanges(ii,2)/sampleRateFactor.ECG);
+        fid = fopen(fullfile(tmpPath,[tmpName '_accelmag.txt']),'w');
+        fprintf(fid,'%f\n',C3.accelmag.dataRaw(accelStartIdx:accelEndIdx)');
+        fclose(fid);
+        % Run ecgkit
         ecgkit_run(hea_fullpath);
         % call report script if checkbox is set to true
         if hECGkitMakePDFCheckbox.Value == 1
-            timeStartOfThisSegment = datetime(addtodate(C3.date_start,jsonTimeOffsetMillisecs(ii),'millisecond'),'ConvertFrom','datenum','Format','yyyy-MM-dd''T''HH:mm:ss.SSS+0000','TimeZone','UTC');
-            jsondata_temp.start = datestr(timeStartOfThisSegment,'yyyy-mm-ddTHH:MM:SS.FFF+0000');
-            jsondata_temp.reportnote = jsonReportNotes{ii,1};
             pdf_fullpath = ecgReportType1(jsondata_temp, hea_fullpath);
             % open report, if one was created and checkbox is set to true
             if ~isempty(pdf_fullpath) && hECGkitOpenPDFCheckbox.Value == 1

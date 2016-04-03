@@ -1444,7 +1444,7 @@ hButtonFFT = uicontrol('Parent',hPanelECGFFT,...
 
 % Sub-panel for Histogram of Acceleration magnitude
 hPanelAccMag = uipanel('Parent',hPanelOptionalPlots,...
-    'Title','Accel mag histogram',...
+    'Title','Acceleration magnitude histogram',...
     'BorderType','etchedin',... %
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
@@ -1477,9 +1477,9 @@ hAccMagHistBinCount = uicontrol('Parent',hPanelAccMag,...
 uicontrol('Parent',hPanelAccMag,...
     'Style','text',...
     'Units','normalized',...
-    'position',[0.55,0.59,0.2,0.25],...
+    'position',[0.475,0.59,0.25,0.25],...
     'HorizontalAlignment','left',...
-    'String','XLim:',...
+    'String','Mag limit:',...
     'FontWeight','normal',...
     'FontSize',8,...
     'BackgroundColor',panelColor);
@@ -3193,7 +3193,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
     function accMagFunc(~,~)
-        accMagNewWindow(C3,rangeStartIndex.Accel,rangeEndIndex.Accel,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hOptPlotRangeButtonGroup,hAccMagHistBinCount,hAccMagHistXLimMin,hAccMagHistXLimMax,full_path,jsondata);
+        accMagNewWindow(C3,rangeStartIndex.Accel,rangeEndIndex.Accel,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hOptPlotRangeButtonGroup,gS,hAccMagHistBinCount,hAccMagHistXLimMin,hAccMagHistXLimMax,full_path,jsondata);
     end
 
     function flipEcgFunc(hUiCtrl, ~, ecgCh)
@@ -4901,7 +4901,7 @@ function [winXpos, winYpos, winWidth, winHeight] = getPlotWinPos()
 end
 
 function fftEcgNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hOptPlotRangeButtonGroup,gS,full_path)
-    if ~isempty(C3) && ~isempty(C3.ecg.data)
+    if gS.dataLoaded
         if hSaveImagesCheckbox.Value == 1
             saveImages = true;
             [source_path,~,~] = fileparts(full_path);
@@ -4945,8 +4945,8 @@ function fftEcgNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveIm
     end
 end
 
-function accMagNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hOptPlotRangeButtonGroup,hAccMagHistBinCount,hAccMagHistXLimMin,hAccMagHistXLimMax,full_path,jsondata)
-    if ~isempty(C3) && ~isempty(C3.accel.data)
+function accMagNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hOptPlotRangeButtonGroup,gS,hAccMagHistBinCount,hAccMagHistXLimMin,hAccMagHistXLimMax,full_path,jsondata)
+    if gS.dataLoaded
         binCount = getIntVal(hAccMagHistBinCount);
         xLimMin = getFloatVal(hAccMagHistXLimMin);
         xLimMax = getFloatVal(hAccMagHistXLimMax);
@@ -4992,10 +4992,11 @@ function accMagNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveIm
         hFig = figure('Numbertitle','off','Name','Acceleration magnitude','Position',[winXpos winYpos winWidth winHeight],'PaperUnits','centimeters','PaperSize',paperSize,'PaperPosition',paperPosition);
         hAx = axes('Parent',hFig,'Position',[0.06 0.08 0.88 0.84], 'Box', 'on');
         binEdges = linspace(xLimMin,xLimMax,binCount+1);
-        %binEdges = xLimMin:binSize:xLimMax;
         histogram(C3.accelmag.data(startIndex:endIndex), binEdges, 'Normalization', 'probability', 'EdgeColor', [1 1 1], 'FaceAlpha', 1, 'Parent', hAx);
         hAx.XLim = [xLimMin xLimMax];
-        yMinLim = -(hAx.YLim(2) / 1000.0);
+        % Setting the YLim just a bit lower than 0, to avoid that the bar edges
+        % overlay the bottom x-axis.
+        yMinLim = -(hAx.YLim(2) / 500.0);
         hAx.YLim = [yMinLim hAx.YLim(2)];
         grid(hAx,'on');
         hAx.YTickLabelRotation = 90;

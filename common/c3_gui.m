@@ -178,7 +178,7 @@ hPanelTimeInfo = uipanel('Parent',hPanelMain,...
 uicontrol('Parent',hPanelTimeInfo,...
     'Style','text',...
     'Units','normalized',...
-    'Position',[0.05 0.85 0.9 0.14],...
+    'Position',[0.05 0.85 0.9 0.12],...
     'HorizontalAlignment','left',...
     'String','Recording:',...
     'FontSize',8,...
@@ -188,7 +188,26 @@ uicontrol('Parent',hPanelTimeInfo,...
 hTextTimeRecording = uicontrol('Parent',hPanelTimeInfo,...
     'Style','text',...
     'Units','normalized',...
-    'Position',[0.05 0.73 0.9 0.14],...
+    'Position',[0.05 0.75 0.9 0.12],...
+    'HorizontalAlignment','center',...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% text label for time info, total duration of recording
+uicontrol('Parent',hPanelTimeInfo,...
+    'Style','text',...
+    'Units','normalized',...
+    'Position',[0.05 0.61 0.9 0.12],...
+    'HorizontalAlignment','left',...
+    'String','Total duration:',...
+    'FontSize',8,...
+    'ForegroundColor',dimmedTextColor,...
+    'BackgroundColor',panelColor);
+
+hTextDurationRecording = uicontrol('Parent',hPanelTimeInfo,...
+    'Style','text',...
+    'Units','normalized',...
+    'Position',[0.05 0.51 0.9 0.12],...
     'HorizontalAlignment','center',...
     'FontSize',8,...
     'BackgroundColor',panelColor);
@@ -197,7 +216,7 @@ hTextTimeRecording = uicontrol('Parent',hPanelTimeInfo,...
 hLabelTimeDisplayed = uicontrol('Parent',hPanelTimeInfo,...
     'Style','text',...
     'Units','normalized',...
-    'Position',[0.05 0.53 0.9 0.14],...
+    'Position',[0.05 0.37 0.9 0.12],...
     'HorizontalAlignment','left',...
     'String','Displayed:',...
     'FontSize',8,...
@@ -207,7 +226,7 @@ hLabelTimeDisplayed = uicontrol('Parent',hPanelTimeInfo,...
 hTextTimeDisplayed = uicontrol('Parent',hPanelTimeInfo,...
     'Style','text',...
     'Units','normalized',...
-    'Position',[0.05,0.41,0.9,0.14],...
+    'Position',[0.05,0.27,0.9,0.12],...
     'HorizontalAlignment','center',...
     'FontSize',8,...
     'BackgroundColor',panelColor);
@@ -215,9 +234,8 @@ hTextTimeDisplayed = uicontrol('Parent',hPanelTimeInfo,...
 % Radio buttons group, duration-based time vs. world time
 hTimebaseButtonGroup = uibuttongroup('Parent',hPanelTimeInfo,...
     'Units','normalized',...
-    'Position',[0.05,0.05,0.9,0.3],...
+    'Position',[0.05,0.04,0.9,0.21],...
     'BackgroundColor',panelColor,...
-    'Title','Axis time',...
     'SelectionChangedFcn',@timebaseSelectionFcn);
 
 % Radio button, zero based time
@@ -454,7 +472,7 @@ hPopupEcgHighPass = uicontrol('Parent',hPanelFilterECG,...
                 'Highpass, (forward+reverse) IIR, butterw, N 1, fc 0.67Hz, fs 250Hz',...
                 'Highpass, (forward+reverse) IIR, butterw, N 2, fc 0.67Hz, fs 250Hz'},...
     'FontSize',8,...
-    'Value',5,...
+    'Value',9,...
     'Callback',{@filterIntermediateToggleFunc,'ecg'});
 
 % Popup menu, for selecting ECG Lowpass filter
@@ -2225,10 +2243,11 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 gS.flipEcg2 = false;
                 gS.flipEcg3 = false;
                 sourceName = updateDirectoryInfo(full_path,jsondata);
-                setRecordingTimeInfo(C3,hTextTimeRecording);
+                setRecordingTimeInfo(C3,hTextTimeRecording,hTextDurationRecording);
                 timeBase = getTimeBase(hTimebaseButtonGroup,hLabelTimeDisplayed);
                 [xAxisTimeStamps, timeStart, timeEnd] = calcTimeStamps(C3,xAxisTimeStamps,timeBase,timeStart,timeEnd);
-                [rangeStartIndex, rangeEndIndex] = resetRange(C3,rangeStartIndex,rangeEndIndex,hResetButton,hRangeSlider,hPopupEvent,hNavEventLeftButton,hNavEventRightButton);
+                [rangeStartIndex, rangeEndIndex] = setRangeOnLoad(C3,xAxisTimeStamps,rangeStartIndex,rangeEndIndex,timeBase,sampleRateFactor,hResetButton,hRangeSlider,hPopupEvent,hNavEventLeftButton,hNavEventRightButton);
+                setRangeSlider(C3,rangeStartIndex,rangeEndIndex,hRangeSlider);
                 setRangeInfo(xAxisTimeStamps,timeBase,rangeStartIndex,rangeEndIndex,hTextTimeDisplayed);
                 outputRecordingStats;
                 if hParentPanels(3).Visible
@@ -3592,11 +3611,10 @@ end
 function accelIndex = getAccelIndexPoint(xAxisTimeStamps,timeBase,timePoint)
 % This function finds the Accel index number that most closely corresponds to the given time input.
 if strcmp(timeBase,'World')
-    % search for index of value closest to given time, in the ECG data,
+    % search for index of value closest to given time, in the Accel data
     accelIndex = (find(datenum(xAxisTimeStamps.world.Accel) > datenum(timePoint), 1)) - 1;
 else
-    % search for index of value closest to given time, in the Accel data,
-    % which has a lower sampling rate than the ECG signal.
+    % search for index of value closest to given time, in the Accel data
     accelIndex = (find(datenum(xAxisTimeStamps.duration.Accel) > datenum(timePoint), 1)) - 1;
 end
 end
@@ -3605,20 +3623,24 @@ function ecgIndex = getEcgIndexPoint(xAxisTimeStamps,timeBase,timePoint)
 % This function finds the ECG index number that most closely corresponds to the given time input.
 % hTic_getEcgIndexPoint = tic;
 if strcmp(timeBase,'World')
-    % search for index of value closest to given time, in the ECG data,
+    % search for index of value closest to given time, in the ECG data
     ecgIndex = (find(datenum(xAxisTimeStamps.world.ECG) > datenum(timePoint), 1)) - 1;
 else
-    % search for index of value closest to given time, in the Accel data,
-    % which has a lower sampling rate than the ECG signal.
+    % search for index of value closest to given time, in the ECG data
     ecgIndex = (find(datenum(xAxisTimeStamps.duration.ECG) > datenum(timePoint), 1)) - 1;
 end
 % fprintf('getEcgPointIndex: %f seconds\n',toc(hTic_getEcgIndexPoint));
 end
 
-function setRecordingTimeInfo(C3,hTextTimeRecording)
+function setRecordingTimeInfo(C3,hTextTimeRecording,hTextDurationRecording)
+    % World time of recording
     timeStart.world = datetime(C3.date_start, 'ConvertFrom', 'datenum');
     timeEnd.world = datetime(C3.date_end, 'ConvertFrom', 'datenum');
     set(hTextTimeRecording,'String',[datestr(timeStart.world, 'yyyy/mm/dd, HH:MM:SS') ' ' char(8211) ' ' datestr(timeEnd.world, 'yyyy/mm/dd, HH:MM:SS')]);
+    % Duration of recording
+    deltaTime = datetime(C3.date_end, 'ConvertFrom', 'datenum') - datetime(C3.date_start, 'ConvertFrom', 'datenum');
+    [h,m,s] = hms(deltaTime);
+    set(hTextDurationRecording,'String',sprintf('%02i:%02i:%02i  (hrs:min:sec)',h(1),m(1),floor(s(1))));
 end
 
 function setRangeInfo(xAxisTimeStamps,timeBase,rangeStartIndex,rangeEndIndex,hTextTimeDisplayed)
@@ -3628,7 +3650,7 @@ if strcmp(timeBase,'World')
     set(hTextTimeDisplayed,'String',[datestr(xAxisTimeStamps.world.Accel(rangeStartIndex.Accel), 'yyyy/mm/dd, HH:MM:SS') ' - ' datestr(xAxisTimeStamps.world.Accel(rangeEndIndex.Accel), 'yyyy/mm/dd, HH:MM:SS')]);
 else
     [h,m,s] = hms([xAxisTimeStamps.duration.Accel(rangeStartIndex.Accel) xAxisTimeStamps.duration.Accel(rangeEndIndex.Accel)]);
-    set(hTextTimeDisplayed,'String',[sprintf('%02i:%02i:%02i',h(1),m(1),round(s(1))) ' ' char(8211) ' ' sprintf('%02i:%02i:%02i',h(2),m(2),round(s(2)))]);
+    set(hTextTimeDisplayed,'String',[sprintf('%02i:%02i:%02i',h(1),m(1),round(s(1))) ' ' char(8211) ' ' sprintf('%02i:%02i:%02i',h(2),m(2),floor(s(2)))]);
 end
 %     fprintf('setRangeInfo: %f seconds\n',toc(hTic_setRangeInfo));
 end
@@ -3777,6 +3799,57 @@ hRangeSlider.Enable = 'off';
 hPopupEvent.Enable = 'off';
 hNavEventLeftButton.Enable = 'off';
 hNavEventRightButton.Enable = 'off';
+end
+
+function [rangeStartIndex, rangeEndIndex] = setRangeOnLoad(C3,xAxisTimeStamps,rangeStartIndex,rangeEndIndex,timeBase,sampleRateFactor,hResetButton,hRangeSlider,hPopupEvent,hNavEventLeftButton,hNavEventRightButton)
+% Show max 5 minutes, when loading a new recording
+% Find Accel index for 5 min after start of recording
+if strcmp(timeBase,'World')
+    displayRangeEnd = datetime(addtodate(C3.date_start,5*60*1000,'millisecond'),'ConvertFrom','datenum','Format','yyyy-MM-dd''T''HH:mm:ss.SSS+0000','TimeZone','UTC');
+    accelIndex = getAccelIndexPoint(xAxisTimeStamps,timeBase,displayRangeEnd);
+    if isempty(accelIndex)
+        displayingFull = true;
+    else
+        displayingFull = false;
+    end
+else
+    displayRangeEnd = days(minutes(5));
+    accelIndex = getAccelIndexPoint(xAxisTimeStamps,timeBase,displayRangeEnd);
+    if isempty(accelIndex)
+        displayingFull = true;
+    else
+        displayingFull = false;
+    end
+end
+if displayingFull
+    hResetButton.Enable = 'off';
+    hRangeSlider.Enable = 'off';
+    hPopupEvent.Enable = 'off';
+    hNavEventLeftButton.Enable = 'off';
+    hNavEventRightButton.Enable = 'off';
+    rangeStartIndex.Accel = 1;
+    rangeEndIndex.Accel = length(C3.accel.data);
+    rangeStartIndex.Temp = 1;
+    rangeEndIndex.Temp = length(C3.temp.data);
+    rangeStartIndex.ECG = 1;
+    rangeEndIndex.ECG = length(C3.ecg.data);
+    rangeStartIndex.Resp = 1;
+    rangeEndIndex.Resp = length(C3.resp.data);
+else
+    hResetButton.Enable = 'on';
+    hRangeSlider.Enable = 'on';
+    hPopupEvent.Enable = 'on';
+    hNavEventLeftButton.Enable = 'on';
+    hNavEventRightButton.Enable = 'on';
+    rangeStartIndex.Accel = 1;
+    rangeEndIndex.Accel = accelIndex;
+    rangeStartIndex.Temp = 1;
+    rangeEndIndex.Temp = min(length(C3.temp.data), round(rangeEndIndex.Accel * sampleRateFactor.Temp));
+    rangeStartIndex.ECG = 1;
+    rangeEndIndex.ECG = min(length(C3.ecg.data), rangeEndIndex.Accel * sampleRateFactor.ECG);
+    rangeStartIndex.Resp = 1;
+    rangeEndIndex.Resp = min(length(C3.resp.data), rangeEndIndex.Accel * sampleRateFactor.Resp);
+end
 end
 
 function enableButtons(varargin)
@@ -5002,7 +5075,7 @@ function fftEcgNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveIm
             xlabel(hAx,'Frequency (Hz)','FontSize',10);
 %             ylabel(hAx,'fft','FontSize',10);
             set(hAx,'FontSize',10);
-            hAx.XTick = hAx.XLim(1):10:hAx.XLim(2);
+%             hAx.XTick = hAx.XLim(1):10:hAx.XLim(2);
             if saveImages
                 imgTitleStr = ['FFT ECG' num2str(ii) ' ' getRangeStrForFileName(xAxisTimeStamps,timeBase,startIndex,endIndex,'ECG')];
                 print(hFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng','-r90');

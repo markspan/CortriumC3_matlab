@@ -214,11 +214,11 @@ function [serialNumber, conf, serial_ADS, leadoff, acc, temp, resp, ecg, ecg_ser
     batchesBeforeFirstValidSerial = (posForValidConf - 19) / batchSize;
     serialOfFirstBatch = first_valid_serial - batchesBeforeFirstValidSerial;
     if mod(serialOfFirstBatch,2) == 0
-        temp_ambient = temp_amb_obj(1:2:end);
-        temp_object = temp_amb_obj(2:2:end);
-    else
         temp_ambient = temp_amb_obj(2:2:end);
         temp_object = temp_amb_obj(1:2:end);
+    else
+        temp_ambient = temp_amb_obj(1:2:end);
+        temp_object = temp_amb_obj(2:2:end);
     end
     
     acc = [acc_y, -acc_x, acc_z]; % yes, acc_x = acc_y, and yes, acc_y = -acc_x

@@ -17,7 +17,10 @@ sourceName = '';
 fileName = '';
 full_path = '';
 json_fullpath = '';
-% gS - a struct to keep track of various options in the GUI, such as whether to flip ecg channels, etc.
+last_path = '';
+% cS, a struct for ECGkit classification results
+cS = struct([]);
+% gS, a struct to keep track of various options in the GUI, such as whether to flip ecg channels, etc.
 gS = struct('dataLoaded',false,...
             'flipEcg1',false,...
             'flipEcg2',false,...
@@ -29,15 +32,20 @@ gS = struct('dataLoaded',false,...
             'eventMarkerDisplay',false,...
             'colors',[]);
         
-gS.colors.col = {[1 0 0],...
-                 [0 0.8 0],...
-                 [0 0 1],...
-                 [0 0 0],...
-                 [1 1 1],...
-                 [0.5 0.5 0.5],...
-                 [1.0 0.68 0.1],...
-                 [0.7451 0.2078 0.8588]};
-
+gS.colors.col = {[1 0 0],... % red, for ECG1, Resp, AccelX, Temp Obj
+                 [0 0.8 0],... % green
+                 [0 0 1],... % blue
+                 [0 0 0],... % black
+                 [1 1 1],... % white
+                 [0.5 0.5 0.5],... % grey
+                 [1.0 0.68 0.1],... % light-orange, for event markers
+                 [0.7451 0.2078 0.8588],... % purple-ish, for analysis markers
+                 [0.95 0.45 0],... % S
+                 [0.95 0 0.95],... % V
+                 [0, 0.7 0.3],... % F
+                 [0.5000 0.8016 1],... % U
+                 [0 0.4470 0.7410]}; % N
+            
 % Set a temporary screen resolution of 1920x1080 pixels while we construct GUI.
 % Will be modified to actual screen resolution before GUI is displayed.
 % Currently the GUI doesn't scale well to resolutions much smaller than
@@ -93,6 +101,7 @@ hFig = figure('Name','Cortrium C3 sensor data',...
     'MenuBar', 'figure',...
     'Toolbar','none',...
     'Visible','off',...
+    'KeyPressFcn',@guiKeyPressFcn,...
     'ResizeFcn',@resizeFcn,...
     'CloseRequestFcn',@closeRequestFcn);
 
@@ -322,7 +331,7 @@ hNavEventLeftButton = uicontrol('Parent',hPanelNavigateData,...
     'Position',[0.05,0.038,0.25,0.17],...
     'String','< Event',...
     'FontSize',10,...
-    'Callback',@navEventLeftButtonFcn);
+    'Callback',@navEventLefFcn);
 
 % Button, Navigate Event right
 hNavEventRightButton = uicontrol('Parent',hPanelNavigateData,...
@@ -332,7 +341,7 @@ hNavEventRightButton = uicontrol('Parent',hPanelNavigateData,...
     'Position',[0.7,0.038,0.25,0.17],...
     'String','Event >',...
     'FontSize',10,...
-    'Callback',@navEventRightButtonFcn);
+    'Callback',@navEventRightFcn);
 
 % Popup menu, for selecting an event to navigate to
 hPopupEvent = uicontrol('Parent',hPanelNavigateData,...
@@ -994,7 +1003,7 @@ hButtonEventMarkerSave = uicontrol('Parent',hPanelEventMarkerEditSave,...
 
 %% -----Panel: ECGkit Analysis-----
 
-% create a parent panel for filter functionality sub-panels
+% create a parent panel for ECGkit results sub-panels
 hPanelParentECGkitAnalysis = uipanel('Parent',hPanelMain,...
     'Visible','off',...
     'BorderType','none',...
@@ -1002,7 +1011,7 @@ hPanelParentECGkitAnalysis = uipanel('Parent',hPanelMain,...
     'Position',[0.84 0.01 0.15 0.5],...
     'BackgroundColor',panelColor);
 
-% create a panel for buttons to navigate and export features from the data
+% create a panel for buttons related to ECGkit results
 hPanelECGkitAnalysis = uipanel('Parent',hPanelParentECGkitAnalysis,...
     'Title','ECGkit Analysis',...
     'BorderType','line',... %
@@ -1371,6 +1380,225 @@ if ~exist([cortrium_matlab_scripts_root_path filesep 'reportScripts'],'dir')
     'FontSize',8,...
     'BackgroundColor',panelColor);
 end
+
+%% -----Panel: ECGkit Results-----
+
+% create a parent panel for ECGkit results sub-panels
+hPanelParentECGkitResults = uipanel('Parent',hPanelMain,...
+    'Visible','off',...
+    'BorderType','none',...
+    'Units','normalized',...
+    'Position',[0.84 0.01 0.15 0.5],...
+    'BackgroundColor',panelColor);
+
+% create a panel for buttons related to ECGkit results
+hPanelECGkitResults = uipanel('Parent',hPanelParentECGkitResults,...
+    'Title','ECGkit Results',...
+    'BorderType','line',... %
+    'HighlightColor',panelBorderColor,...
+    'Units','normalized',...
+    'Position',[0 0 1 1],...
+    'BackgroundColor',panelColor);
+
+% Sub-panel for loading and displaying ECGkit beat-classification annotations
+hPanelECGkitClass = uipanel('Parent',hPanelECGkitResults,...
+    'Title','ECGkit heartbeat classification',...
+    'BorderType','etchedin',... %
+    'HighlightColor',panelBorderColor,...
+    'Units','normalized',...
+    'Position',[0.05 0.7 0.9 0.29],...
+    'BackgroundColor',panelColor);
+
+% Checkbox, toggles display of In-Out markers
+hECGkitClassCheckbox = uicontrol('Parent',hPanelECGkitClass,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.68,0.8,0.075,0.18],...
+    'Value',0,...
+    'Enable','on',...
+    'BackgroundColor',panelColor,...
+    'Callback',@ecgkitShowClassFcn);
+
+% Text label, for display of class annotations
+uicontrol('Parent',hPanelECGkitClass,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.76,0.8,0.85,0.14],...
+    'HorizontalAlignment','left',...
+    'String','Display',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Button, load ECGkit classification results
+hButtonLoadECGkitClass = uicontrol('Parent',hPanelECGkitClass,...
+    'Style','pushbutton',...
+    'Units','normalized',...
+    'Position',[0.02,0.75,0.45,0.2],...
+    'String','Load',...
+    'FontSize',10,...
+    'Enable','off',...
+    'BackgroundColor',panelColor,...
+    'Callback',@ecgkitClassLoadFunc);
+
+% Text label, for N class
+uicontrol('Parent',hPanelECGkitClass,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.02,0.52,0.1,0.12],...
+    'HorizontalAlignment','left',...
+    'String','N:',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text label, for V class
+uicontrol('Parent',hPanelECGkitClass,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.02,0.35,0.1,0.12],...
+    'HorizontalAlignment','left',...
+    'String','V:',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text label, for F class
+uicontrol('Parent',hPanelECGkitClass,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.42,0.52,0.1,0.12],...
+    'HorizontalAlignment','left',...
+    'String','F:',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text label, for S class
+uicontrol('Parent',hPanelECGkitClass,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.42,0.35,0.1,0.12],...
+    'HorizontalAlignment','left',...
+    'String','S:',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text label, for U class
+uicontrol('Parent',hPanelECGkitClass,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.8,0.52,0.1,0.12],...
+    'HorizontalAlignment','left',...
+    'String','U:',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text, N class count
+hClassCountN = uicontrol('Parent',hPanelECGkitClass,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.075,0.52,0.25,0.12],...
+    'HorizontalAlignment','left',...
+    'String','NaN',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text, V class count
+hClassCountV = uicontrol('Parent',hPanelECGkitClass,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.075,0.35,0.25,0.12],...
+    'HorizontalAlignment','left',...
+    'String','NaN',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text, F class count
+hClassCountF = uicontrol('Parent',hPanelECGkitClass,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.475,0.52,0.25,0.12],...
+    'HorizontalAlignment','left',...
+    'String','NaN',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text, S class count
+hClassCountS = uicontrol('Parent',hPanelECGkitClass,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.475,0.35,0.25,0.12],...
+    'HorizontalAlignment','left',...
+    'String','NaN',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Text, U class count
+hClassCountU = uicontrol('Parent',hPanelECGkitClass,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.855,0.52,0.125,0.12],...
+    'HorizontalAlignment','left',...
+    'String','NaN',...
+    'FontWeight','normal',...
+    'ForegroundColor',[0 0 0],...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Button, navigate to the left for selected class
+hButtonNavLeftClass = uicontrol('Parent',hPanelECGkitClass,...
+    'Style','pushbutton',...
+    'Units','normalized',...
+    'Position',[0.02,0.05,0.25,0.2],...
+    'String','<',...
+    'FontSize',10,...
+    'Enable','off',...
+    'BackgroundColor',panelColor,...
+    'Callback',@classNavLeftFunc);
+
+% Popup menu, for selecting an event to navigate to
+hPopupClass = uicontrol('Parent',hPanelECGkitClass,...
+    'Style', 'popup',...
+    'Enable','off',...
+    'Units','normalized',...
+    'Position',[0.3,0.05,0.4,0.2],...
+    'String', {'Select...',...
+    'Normal',...
+    'Ventricular',...
+    'Supraventricular',...
+    'Fusion',...
+    'Unclassified'},...
+    'FontSize',10);
+hPopupEvent.Value = 1;
+
+% Button, navigate to the right for selected class
+hButtonNavRightClass = uicontrol('Parent',hPanelECGkitClass,...
+    'Style','pushbutton',...
+    'Units','normalized',...
+    'Position',[0.73,0.05,0.25,0.2],...
+    'String','>',...
+    'FontSize',10,...
+    'Enable','off',...
+    'BackgroundColor',panelColor,...
+    'Callback',@classNavRightFunc);
+
 
 %% -----Panel: Miscellaneous Plots-----
 
@@ -1773,7 +2001,7 @@ hButtonExportECGtoCSV = uicontrol('Parent',hPanelECGCSVexport,...
 
 %% -----Popup menu, for selecting functionality panels-----
 
-hParentPanels = [hPanelParentFiltering,hPanelParentEventAnnotation,hPanelParentECGkitAnalysis,hPanelParentOptionalPlots,hPanelParentExport];
+hParentPanels = [hPanelParentFiltering,hPanelParentEventAnnotation,hPanelParentECGkitAnalysis,hPanelParentECGkitResults,hPanelParentOptionalPlots,hPanelParentExport];
 
 % Popup menu, for selecting functionality panels
 hPopupPanel = uicontrol('Parent',hPanelMain,...
@@ -1784,6 +2012,7 @@ hPopupPanel = uicontrol('Parent',hPanelMain,...
     'String',  {'Filtering',...
                 'Event Markers',...
                 'ECGkit Analysis',...
+                'ECGkit Results',...
                 'Miscellaneous Plots',...
                 'Export'},...
     'FontSize',10,...
@@ -1823,6 +2052,18 @@ set(hAxesECGMarkers,'Xticklabel',[]);
 set(hAxesECGMarkers,'Yticklabel',[]);
 hAxesECGMarkers.TickLength = [0 0];
 hAxesECGMarkers.YLim = [0 1];
+
+% Axes object for ECGkit classification annotations, behind of ECG axes
+% object, otherwise exact same position.
+hAxesECGkitClass = axes('Parent',hPanelSensorDisplay,...
+    'Position',[0.045,0.785,0.9,0.19], 'Color', 'none');
+xlim(hAxesECGkitClass,'manual');
+ylim(hAxesECGkitClass,'manual');
+hold(hAxesECGkitClass,'on');
+set(hAxesECGkitClass,'Xticklabel',[]);
+set(hAxesECGkitClass,'Yticklabel',[]);
+hAxesECGkitClass.TickLength = [0 0];
+hAxesECGkitClass.YLim = [0 1];
 
 % Axes object for ECG plot
 hAxesECG = axes('Parent',hPanelSensorDisplay,...
@@ -2202,6 +2443,11 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
 %% Functions (inline)
 
     function loadButtonFcn()
+        if ~isempty(last_path)
+            org_path = cd(last_path);
+        else
+            org_path = pwd;
+        end
         switch fileFormat
             % if selected file format is BIN, open dialog to select a folder
             case 'BIN (folder)'
@@ -2219,7 +2465,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     full_path = [pathName fileName];
             end
             % clear axes before displaying new data
-            clearAxes([hAxesEventMarkers,hAxesECGMarkers,hAxesECG hAxesResp hAxesAccel hAxesTemp]);
+            clearAxes([hAxesEventMarkers,hAxesECGMarkers,hAxesECGkitClass,hAxesECG hAxesResp hAxesAccel hAxesTemp]);
             drawnow;
             eventAddMarkersOffOnLoad;
             ecgkitAddMarkersOffOnLoad;
@@ -2232,8 +2478,11 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,hEventListBox.Value);
             end
             disableButtons(hButtonEventMarkerAddToggle,hButtonECGkitMarkerAddToggle,hButtonECGkitMarkerOut,hButtonECGkitMarkerDel,hButtonECGkitMarkerEdit,hButtonECGkitMarkerSave);
+            cS = [];
             gS.dataLoaded = loadAndFormatData;
             if gS.dataLoaded
+                last_path = pathName;
+                cd(org_path);
                 % resetting end times
                 timeEnd.world = [];
                 timeEnd.duration = [];
@@ -2249,6 +2498,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 [rangeStartIndex, rangeEndIndex] = setRangeOnLoad(C3,xAxisTimeStamps,rangeStartIndex,rangeEndIndex,timeBase,sampleRateFactor,hResetButton,hRangeSlider,hPopupEvent,hNavEventLeftButton,hNavEventRightButton);
                 setRangeSlider(C3,rangeStartIndex,rangeEndIndex,hRangeSlider);
                 setRangeInfo(xAxisTimeStamps,timeBase,rangeStartIndex,rangeEndIndex,hTextTimeDisplayed);
+                resetClassCount(hClassCountN,hClassCountS,hClassCountV,hClassCountF,hClassCountU);
                 outputRecordingStats;
                 if hParentPanels(3).Visible
                     updateEcgkitListbox(hECGkitListBox,reportIOmarkers,xAxisTimeStamps,timeBase,0);
@@ -2257,7 +2507,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,hEventListBox.Value);
                 end
                 plotSensorData;
-                enableButtons(hPopupRange,hRangeButton,hButtonExportECGtoMIT,hButtonExportECGtoCSV,hButtonECGkitGenReport);
+                enableButtons(hPopupRange,hRangeButton,hButtonExportECGtoMIT,hButtonExportECGtoCSV,hButtonECGkitGenReport,hButtonLoadECGkitClass);
                 enableButtons(hButtonEventMarkerAddToggle,hButtonEventMarkerDel,hButtonEventMarkerEdit,hButtonEventMarkerSave,hButtonECGkitMarkerAddToggle,hButtonECGkitMarkerOut,hButtonECGkitMarkerDel,hButtonECGkitMarkerEdit,hButtonECGkitMarkerSave);
             end
         end
@@ -2495,6 +2745,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         %         linkaxes([hAxesECG hAxesResp hAxesAccel hAxesTemp], 'off');
         plotEventMarkers(rangeStartIndex.Accel,rangeEndIndex.Accel,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS);
         plotECGMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
+        plotECGkitClass(rangeStartIndex.ECG,rangeEndIndex.ECG,cS,hAxesECGkitClass,hECGkitClassCheckbox,gS);
         plotECG(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox,hECGleadoffCheckbox)
         plotResp(C3,rangeStartIndex.Resp,rangeEndIndex.Resp,xAxisTimeStamps,timeBase,hAxesResp,hRespCheckbox);
         plotAccel(C3,rangeStartIndex.Accel,rangeEndIndex.Accel,xAxisTimeStamps,timeBase,hAxesAccel,hAccelXCheckbox,hAccelYCheckbox,hAccelZCheckbox,hAccelMagnitudeCheckbox);
@@ -2561,7 +2812,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         %         fprintf('Slider value: %f\n', hRangeSlider.Value);
     end
 
-    function navEventLeftButtonFcn(varargin)
+    function navEventLefFcn(varargin)
         % if no event type has been selected
         if hPopupEvent.Value == 1
             warndlg(sprintf('Please select an event type\nfrom the popup menu!'),'Select an event!');
@@ -2592,7 +2843,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         end
     end
 
-    function navEventRightButtonFcn(varargin)
+    function navEventRightFcn(varargin)
         % if no event type has been selected
         if hPopupEvent.Value == 1
             warndlg(sprintf('Please select an event type\nfrom the popup menu!'),'Select an event!');
@@ -2605,6 +2856,74 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 %                 C3.ecg.data(eventECG_rowIdx(1),:)
                 currentRange = (rangeEndIndex.Accel - rangeStartIndex.Accel);
                 rangeStartIndex.Accel = round(eventECG_rowIdx(1)*(1/sampleRateFactor.ECG)) - round(currentRange * 0.5);
+                rangeEndIndex.Accel = rangeStartIndex.Accel + currentRange;
+                [startIdx, endIdx] = setRangeWithinBounds(rangeStartIndex.Accel, rangeEndIndex.Accel, C3.accel.samplenum);
+                rangeStartIndex.Accel = startIdx;
+                rangeEndIndex.Accel = endIdx;
+                rangeStartIndex.Temp = floor((rangeStartIndex.Accel - 1) * sampleRateFactor.Temp) + 1;
+                rangeEndIndex.Temp = min(length(C3.temp.data), round(rangeEndIndex.Accel * sampleRateFactor.Temp));
+                rangeStartIndex.ECG = ((rangeStartIndex.Accel - 1) * sampleRateFactor.ECG) + 1;
+                rangeEndIndex.ECG = min(length(C3.ecg.data), rangeEndIndex.Accel * sampleRateFactor.ECG);
+                rangeStartIndex.Resp = ((rangeStartIndex.Accel - 1) * sampleRateFactor.Resp) + 1;
+                rangeEndIndex.Resp = min(length(C3.resp.data), rangeEndIndex.Accel * sampleRateFactor.Resp);
+                % update range info text, and plot range
+                setRangeSlider(C3,rangeStartIndex,rangeEndIndex,hRangeSlider);
+                setRangeInfo(xAxisTimeStamps,timeBase,rangeStartIndex,rangeEndIndex,hTextTimeDisplayed);
+                plotSensorData;
+            end
+        end
+    end
+
+    function classNavLeftFunc(~,~)
+        % if no event type has been selected
+        if hPopupClass.Value == 1
+            warndlg(sprintf('Please select a classification\nfrom the popup menu!'),'Select a classification!');
+        else
+            % find annotated beats to the left of the displayed range
+            cL = getClassLabel(hPopupClass.Value);
+            cSindicesBool = cS.time < rangeStartIndex.ECG; 
+            cSindexMax = find(cSindicesBool,1,'last');
+            cSindex = find(cS.anntyp(1:cSindexMax) == cL,1,'last');
+            if isempty(cSindex)
+                warndlg(sprintf('No occurences of the selected class,\nto the left of the plotted data.'),'No instances to navigate to!');
+            else
+                ecgIdx = cS.time(cSindex);
+                currentRange = (rangeEndIndex.Accel - rangeStartIndex.Accel);
+                rangeStartIndex.Accel = round(ecgIdx*(1/sampleRateFactor.ECG)) - round(currentRange * 0.5);
+                rangeEndIndex.Accel = rangeStartIndex.Accel + currentRange;
+                [startIdx, endIdx] = setRangeWithinBounds(rangeStartIndex.Accel, rangeEndIndex.Accel, C3.accel.samplenum);
+                rangeStartIndex.Accel = startIdx;
+                rangeEndIndex.Accel = endIdx;
+                rangeStartIndex.Temp = floor((rangeStartIndex.Accel - 1) * sampleRateFactor.Temp) + 1;
+                rangeEndIndex.Temp = min(length(C3.temp.data), round(rangeEndIndex.Accel * sampleRateFactor.Temp));
+                rangeStartIndex.ECG = ((rangeStartIndex.Accel - 1) * sampleRateFactor.ECG) + 1;
+                rangeEndIndex.ECG = min(length(C3.ecg.data), rangeEndIndex.Accel * sampleRateFactor.ECG);
+                rangeStartIndex.Resp = ((rangeStartIndex.Accel - 1) * sampleRateFactor.Resp) + 1;
+                rangeEndIndex.Resp = min(length(C3.resp.data), rangeEndIndex.Accel * sampleRateFactor.Resp);
+                % update range info text, and plot range
+                setRangeSlider(C3,rangeStartIndex,rangeEndIndex,hRangeSlider);
+                setRangeInfo(xAxisTimeStamps,timeBase,rangeStartIndex,rangeEndIndex,hTextTimeDisplayed);
+                plotSensorData;
+            end
+        end
+    end
+
+    function classNavRightFunc(~,~)
+        % if no event type has been selected
+        if hPopupClass.Value == 1
+            warndlg(sprintf('Please select a classification\nfrom the popup menu!'),'Select a classification!');
+        else
+            % find annotated beats to the left of the displayed range
+            cL = getClassLabel(hPopupClass.Value);
+            cSindicesBool = cS.time > rangeEndIndex.ECG; 
+            cSindexMin = find(cSindicesBool,1);
+            cSindex = cSindexMin + (find(cS.anntyp(cSindexMin:end) == cL,1)) - 1;
+            if isempty(cSindex)
+                warndlg(sprintf('No occurences of the selected class,\nto the right of the plotted data.'),'No instances to navigate to!');
+            else
+                ecgIdx = cS.time(cSindex);
+                currentRange = (rangeEndIndex.Accel - rangeStartIndex.Accel);
+                rangeStartIndex.Accel = round(ecgIdx*(1/sampleRateFactor.ECG)) - round(currentRange * 0.5);
                 rangeEndIndex.Accel = rangeStartIndex.Accel + currentRange;
                 [startIdx, endIdx] = setRangeWithinBounds(rangeStartIndex.Accel, rangeEndIndex.Accel, C3.accel.samplenum);
                 rangeStartIndex.Accel = startIdx;
@@ -2699,6 +3018,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hParentPanels(3).Visible = 'off';
             hParentPanels(4).Visible = 'off';
             hParentPanels(5).Visible = 'off';
+            hParentPanels(6).Visible = 'off';
         % if item 2 ('Event Annotation') is selected
         elseif hPopupPanel.Value == 2
             hParentPanels(1).Visible = 'off';
@@ -2706,6 +3026,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hParentPanels(3).Visible = 'off';
             hParentPanels(4).Visible = 'off';
             hParentPanels(5).Visible = 'off';
+            hParentPanels(6).Visible = 'off';
         % if item 3 ('ECGkit Analysis') is selected
         elseif hPopupPanel.Value == 3
             hParentPanels(1).Visible = 'off';
@@ -2713,18 +3034,28 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hParentPanels(3).Visible = 'on';
             hParentPanels(4).Visible = 'off';
             hParentPanels(5).Visible = 'off';
+            hParentPanels(6).Visible = 'off';
         elseif hPopupPanel.Value == 4
             hParentPanels(1).Visible = 'off';
             hParentPanels(2).Visible = 'off';
             hParentPanels(3).Visible = 'off';
             hParentPanels(4).Visible = 'on';
             hParentPanels(5).Visible = 'off';
+            hParentPanels(6).Visible = 'off';
         elseif hPopupPanel.Value == 5
             hParentPanels(1).Visible = 'off';
             hParentPanels(2).Visible = 'off';
             hParentPanels(3).Visible = 'off';
             hParentPanels(4).Visible = 'off';
             hParentPanels(5).Visible = 'on';
+            hParentPanels(6).Visible = 'off';
+        elseif hPopupPanel.Value == 6
+            hParentPanels(1).Visible = 'off';
+            hParentPanels(2).Visible = 'off';
+            hParentPanels(3).Visible = 'off';
+            hParentPanels(4).Visible = 'off';
+            hParentPanels(5).Visible = 'off';
+            hParentPanels(6).Visible = 'on';
         end
     end
 
@@ -3065,6 +3396,67 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         genECGkitReport(C3,sampleRateFactor,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path,fileFormat);
     end
 
+    function ecgkitShowClassFcn(~,~)
+        if hECGkitClassCheckbox.Value == 1
+            plotECGkitClass(rangeStartIndex.ECG,rangeEndIndex.ECG,cS,hAxesECGkitClass,hECGkitClassCheckbox,gS);
+        else
+            cla(hAxesECGkitClass);
+        end
+    end
+
+    function ecgkitClassLoadFunc(~,~)
+        org_path = cd(last_path);
+        [fileNameClass,pathNameClass] = uigetfile('*heartbeat_classifier.mat');
+        cd(org_path);
+        % if a file was selected
+        if pathNameClass
+            % load classification file, if ecgkit made on
+            classification_fullpath = fullfile(pathNameClass,fileNameClass);
+            if exist(classification_fullpath, 'file') == 2
+                cS = load(classification_fullpath);
+            else
+                cS = [];
+                set(hClassCountN,'String','0');
+                set(hClassCountS,'String','0');
+                set(hClassCountV,'String','0');
+                set(hClassCountF,'String','0');
+                set(hClassCountU,'String','0');
+                warning(['No classification file at: ' classification_fullpath '\n']);
+                return;
+            end
+            countN = length(find(cS.anntyp == 'N'));
+            countS = length(find(cS.anntyp == 'S'));
+            countV = length(find(cS.anntyp == 'V'));
+            countF = length(find(cS.anntyp == 'F'));
+            countU = length(find(cS.anntyp == 'U'));
+            set(hClassCountN,'String',num2str(countN));
+            set(hClassCountS,'String',num2str(countS));
+            set(hClassCountV,'String',num2str(countV));
+            set(hClassCountF,'String',num2str(countF));
+            set(hClassCountU,'String',num2str(countU));
+            % look for and load a JSON in the same folder as the clssification file
+            listjson_segment = dir([pathNameClass filesep '*.JSON']);
+            % if only one JSON file exist in this directory, load it
+            if size(listjson_segment,1) == 1
+                json_segment_fullpath = [pathNameClass filesep listjson_segment(1).name];
+                jsondata_segment = loadjson(json_segment_fullpath);
+            % else,if more than 1 JSON file is present, warn
+            elseif size(listjson_segment,1) > 1
+                warndlg(sprintf('More than one JSON file present in folder!\nAuto-loading of JSON was skipped.'));
+                disableButtons(hButtonNavLeftClass,hButtonNavRightClass,hPopupClass);
+            end
+            if ~isempty(jsondata_segment) && isfield(jsondata_segment,'ecgsampleoffset')
+                cS.time = cS.time + jsondata_segment.ecgsampleoffset;
+                enableButtons(hButtonNavLeftClass,hButtonNavRightClass,hPopupClass);
+                plotECGkitClass(rangeStartIndex.ECG,rangeEndIndex.ECG,cS,hAxesECGkitClass,hECGkitClassCheckbox,gS);
+            else
+                warndlg(sprintf(['JSON file for this analysis segment did not contain an "ecgsampleoffset" field!\n\n'...
+                'Heartbeat classifications can not be displayed in ECG plot.\nPlease perform a new ECGkit analysis.']));
+                disableButtons(hButtonNavLeftClass,hButtonNavRightClass,hPopupClass);
+            end
+        end
+    end
+
     function exportECGtoMITfilesFunc(~,~)
         if strcmp(get(get(hExportRangeButtonGroup,'selectedobject'),'String'),'Displayed')
             rangeStr = 'displayed';
@@ -3084,9 +3476,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         %--- creates a new, floating window for the ECG plot ---%
         % get screen size
         screenSize = get(0,'screensize');
-        winXpos = round(screenSize(3)*0.05);
+        winXpos = 10; %round(screenSize(3)*0.05);
         winYpos = round(screenSize(4)*0.5) - round(screenSize(4)*0.1);
-        winWidth = round(screenSize(3)*0.5);
+        winWidth = round(screenSize(3)*0.85);
         winHeight = round(screenSize(4)*0.5);
         xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'ECG');
         plotOptions = getPlotOptions(timeBase);
@@ -3144,9 +3536,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         %--- creates a new, floating window for the ECG plot ---%
         % get screen size
         screenSize = get(0,'screensize');
-        winXpos = round(screenSize(3)*0.05);
+        winXpos = 10; %round(screenSize(3)*0.05);
         winYpos = round(screenSize(4)*0.5) - round(screenSize(4)*0.2);
-        winWidth = round(screenSize(3)*0.5);
+        winWidth = round(screenSize(3)*0.85);
         winHeight = round(screenSize(4)*0.5);
         xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'Resp');
         plotOptions = getPlotOptions(timeBase);
@@ -3175,9 +3567,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         %--- creates a new, floating window for the Acceleration plot ---%
         % get screen size
         screenSize = get(0,'screensize');
-        winXpos = 0;%round(screenSize(3)*0.05)
+        winXpos = 10;%round(screenSize(3)*0.05)
         winYpos = round(screenSize(4)*0.5) - round(screenSize(4)*0.3);
-        winWidth = round(screenSize(3));%*0.5
+        winWidth = round(screenSize(3)*0.85);%*0.5
         winHeight = round(screenSize(4)*0.5);
         xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'Accel');
         plotOptions = getPlotOptions(timeBase);
@@ -3234,9 +3626,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         %--- creates a new, floating window for the Temperature plot ---%
         % get screen size
         screenSize = get(0,'screensize');
-        winXpos = round(screenSize(3)*0.05);
+        winXpos = 10; %round(screenSize(3)*0.05);
         winYpos = round(screenSize(4)*0.5) - round(screenSize(4)*0.4);
-        winWidth = round(screenSize(3)*0.5);
+        winWidth = round(screenSize(3)*0.85);
         winHeight = round(screenSize(4)*0.5);
         xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'Temp');
         plotOptions = getPlotOptions(timeBase);
@@ -3304,6 +3696,17 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             C3.ecg.data(:,3) = C3.ecg.data(:,3) - (2 * C3.ecg.data(:,3));
         end
         ecgPlotFunc;
+    end
+
+    function guiKeyPressFcn(~,e)
+        if hPopupPanel.Value == 4
+            switch(e.Key)
+                case 'rightarrow'
+                    classNavRightFunc;
+                case 'leftarrow'
+                    classNavLeftFunc;
+            end
+        end
     end
 
     function resizeFcn(varargin)
@@ -3384,6 +3787,31 @@ function plotEventMarkers(startIdx,endIdx,eventMarkers,hAxesEventMarkers,hEventM
         end
         for ii=1:length(nonSelectedMarkers)
             text(eventMarkers(nonSelectedMarkers(ii)).serial, 0.075, sprintf('%02d',nonSelectedMarkers(ii)), 'HorizontalAlignment', 'left', 'FontSize', 8, 'FontWeight', 'bold', 'BackgroundColor', gS.colors.col{7}, 'Color', gS.colors.col{4}, 'Margin', 0.4, 'EdgeColor', 'none', 'Parent', hAxesEventMarkers);
+        end
+    end
+end
+
+function plotECGkitClass(startIdx,endIdx,cS,hAxesECGkitClass,hECGkitClassCheckbox,gS)
+    cla(hAxesECGkitClass);
+    if hECGkitClassCheckbox.Value == 1 && ~isempty(cS) && (endIdx-startIdx) < 15001
+        hAxesECGkitClass.XLim = [startIdx endIdx];
+        % find beats within displayed range
+        cSindicesBool = cS.time >= startIdx & cS.time <= endIdx; 
+        cSindices = find(cSindicesBool);
+        % plot class labels, one color per class
+        for ii=1:length(cSindices)
+            if cS.anntyp(cSindices(ii)) == 'N'
+                annCol = gS.colors.col{13};
+            elseif cS.anntyp(cSindices(ii)) == 'S'
+                annCol = gS.colors.col{9};
+            elseif cS.anntyp(cSindices(ii)) == 'V'
+                annCol = gS.colors.col{10};
+            elseif cS.anntyp(cSindices(ii)) == 'U'
+                annCol = gS.colors.col{11};
+            elseif cS.anntyp(cSindices(ii)) == 'F'
+                annCol = gS.colors.col{12};
+            end
+            text(cS.time(cSindices(ii)), 0.95, cS.anntyp(cSindices(ii)), 'HorizontalAlignment', 'left', 'FontSize', 10, 'FontWeight', 'bold', 'BackgroundColor', annCol, 'Color', gS.colors.col{5}, 'Margin', 0.6, 'EdgeColor', 'none', 'Parent', hAxesECGkitClass);
         end
     end
 end
@@ -4871,6 +5299,9 @@ function genECGkitReport(C3,sampleRateFactor,indexStartECG,indexEndECG,xAxisTime
         timeStartOfThisSegment = datetime(addtodate(C3.date_start,jsonTimeOffsetMillisecs(ii),'millisecond'),'ConvertFrom','datenum','Format','yyyy-MM-dd''T''HH:mm:ss.SSS+0000','TimeZone','UTC');
         jsondata_temp.start = datestr(timeStartOfThisSegment,'yyyy-mm-ddTHH:MM:SS.FFF+0000');
         jsondata_temp.reportnote = jsonReportNotes{ii,1};
+        % add a field indicating the ecg sample number of the original recording
+        % that this segment starts from
+        jsondata_temp.ecgsampleoffset = ecgRanges(ii,1);
         savejson('',jsondata_temp,'FileName',fullfile(tmpPath,[tmpName '.json']),'ParseLogical',1);
         % Export Accel data for this segment. NOTE: Since ECG indices are
         % currently not constrained to match up with whole BLE packages,
@@ -5205,4 +5636,28 @@ function intVal = getIntVal(hEdit)
     else
         warndlg('Integer input is required!');
     end
+end
+
+function cL = getClassLabel(classPopupValue)
+    if classPopupValue == 1
+        cL = '';
+    elseif classPopupValue == 2
+        cL = 'N';
+    elseif classPopupValue == 3
+        cL = 'V';
+    elseif classPopupValue == 4
+        cL = 'S';
+    elseif classPopupValue == 5
+        cL = 'F';
+    elseif classPopupValue == 6
+        cL = 'U';
+    end
+end
+
+function resetClassCount(hClassCountN,hClassCountS,hClassCountV,hClassCountF,hClassCountU)
+    set(hClassCountN,'String','0');
+    set(hClassCountS,'String','0');
+    set(hClassCountV,'String','0');
+    set(hClassCountF,'String','0');
+    set(hClassCountU,'String','0');
 end

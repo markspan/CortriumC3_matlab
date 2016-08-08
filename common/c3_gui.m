@@ -14,6 +14,7 @@ jsondata = struct([]);
 jsondata_class_segment = struct([]);
 reportIOmarkers = struct([]);
 eventMarkers = struct([]);
+segAnns = struct([]);
 pathName = '';
 sourceName = '';
 fileName = '';
@@ -36,6 +37,14 @@ gS = struct('dataLoaded',false,...
             'ecgInpointSet',false,...
             'eventMarkerMode',false,...
             'eventMarkerDisplay',false,...
+            'classAnnDragSel',false,...
+            'segAnnMode','none',...
+            'segAnnECGInSet',false,...
+            'segAnnRespInSet',false,...
+            'segAnnAccelInSet',false,...
+            'segAnnDispECG',false,...
+            'segAnnDispResp',false,...
+            'segAnnDispAccel',false,...
             'colors',[]);
         
 gS.colors.col = {[1 0 0],... % red, for ECG1, Resp, AccelX, Temp Obj
@@ -101,7 +110,7 @@ ibiSegmentSampleNums = [];
 %% GUI
 
 % (MATLAB R2014b+) turn off graphics smoothing on graphics root object
-set(groot,'DefaultFigureGraphicsSmoothing','off')
+set(groot,'DefaultFigureGraphicsSmoothing','on')
 
 % Create GUI window, visibility is turned off while the GUI elements are added
 hFig = figure('Name','Cortrium C3 sensor data',...
@@ -1211,82 +1220,13 @@ hButtonLoadECGkitClass = uicontrol('Parent',hPanelParentECGkitResults,...
     'BackgroundColor',panelColor,...
     'Callback',@loadEcgkitClassFunc);
 
-% % Sub-panel for ECGkit QRS detection stats
-% hPanelQRSdetect = uipanel('Parent',hPanelECGkitResults,...
-%     'Title','QRS detection',...
-%     'BorderType','etchedin',... %
-%     'HighlightColor',panelBorderColor,...
-%     'Units','normalized',...
-%     'Position',[0.05 0.66 0.9 0.24],...
-%     'BackgroundColor',panelColor);
-% 
-% % Text label, for total beats
-% uicontrol('Parent',hPanelQRSdetect,...
-%     'Style','text',...
-%     'Units','normalized',...
-%     'position',[0.02,0.8,0.5,0.16],...
-%     'HorizontalAlignment','left',...
-%     'String','Total beats:',...
-%     'FontWeight','normal',...
-%     'ForegroundColor',[0 0 0],...
-%     'FontSize',8,...
-%     'BackgroundColor',editColor);
-% 
-% % Text label, for min IBI
-% uicontrol('Parent',hPanelQRSdetect,...
-%     'Style','text',...
-%     'Units','normalized',...
-%     'position',[0.02,0.62,0.14,0.16],...
-%     'HorizontalAlignment','left',...
-%     'String','IBI min:',...
-%     'FontWeight','normal',...
-%     'ForegroundColor',[0 0 0],...
-%     'FontSize',8,...
-%     'BackgroundColor',editColor);
-% 
-% % Text label, for mean IBI
-% uicontrol('Parent',hPanelQRSdetect,...
-%     'Style','text',...
-%     'Units','normalized',...
-%     'position',[0.32,0.62,0.14,0.16],...
-%     'HorizontalAlignment','left',...
-%     'String','mean:',...
-%     'FontWeight','normal',...
-%     'ForegroundColor',[0 0 0],...
-%     'FontSize',8,...
-%     'BackgroundColor',editColor);
-% 
-% % Text label, for max IBI
-% uicontrol('Parent',hPanelQRSdetect,...
-%     'Style','text',...
-%     'Units','normalized',...
-%     'position',[0.72,0.62,0.14,0.16],...
-%     'HorizontalAlignment','left',...
-%     'String','max:',...
-%     'FontWeight','normal',...
-%     'ForegroundColor',[0 0 0],...
-%     'FontSize',8,...
-%     'BackgroundColor',editColor);
-% 
-% % Text label, for IBI standard deviation
-% uicontrol('Parent',hPanelQRSdetect,...
-%     'Style','text',...
-%     'Units','normalized',...
-%     'position',[0.02,0.44,0.14,0.16],...
-%     'HorizontalAlignment','left',...
-%     'String','IBI std:',...
-%     'FontWeight','normal',...
-%     'ForegroundColor',[0 0 0],...
-%     'FontSize',8,...
-%     'BackgroundColor',editColor);
-
 % Sub-panel for ECGkit beat-classification annotations
 hPanelECGkitClass = uipanel('Parent',hPanelECGkitResults,...
     'Title','Heartbeat classification',...
     'BorderType','etchedin',... %
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
-    'Position',[0.05 0.66 0.9 0.24],... %[0.05 0.41 0.9 0.24]
+    'Position',[0.05 0.66 0.9 0.24],...
     'BackgroundColor',panelColor);
 
 % Checkbox, toggles display of In-Out markers
@@ -1482,11 +1422,31 @@ hButtonNavRightClass = uicontrol('Parent',hPanelECGkitClass,...
     'BackgroundColor',panelColor,...
     'Callback',@classNavRightFunc);
 
+% Sub-panel for Drag-select of multiple beat class annotations
+hPanelClassAnnSel = uipanel('Parent',hPanelECGkitResults,...
+    'Title','Drag-select to edit multiple annotations',...
+    'BorderType','etchedin',... %
+    'HighlightColor',panelBorderColor,...
+    'Units','normalized',...
+    'Position',[0.05 0.51 0.9 0.14],...
+    'BackgroundColor',panelColor);
+
+% Button, Drag-select of multiple beat class annotations
+hBtnClassAnnSel = uicontrol('Parent',hPanelClassAnnSel,...
+    'Style','togglebutton',...
+    'Units','normalized',...
+    'Position',[0.02,0.1,0.96,0.8],...
+    'String','Drag-select',...
+    'FontSize',10,...
+    'Value',0,...
+    'Enable','off',...
+    'Callback',@classAnnSelFunc);
+
 % Button, load ECGkit classification results
 hButtonSaveECGkitClass = uicontrol('Parent',hPanelParentECGkitResults,...
     'Style','pushbutton',...
     'Units','normalized',...
-    'Position',[0.05,0.55,0.45,0.06],...
+    'Position',[0.05,0.40,0.45,0.06],...
     'String','Save',...
     'FontSize',10,...
     'Enable','off',...
@@ -2240,7 +2200,7 @@ hStdSearchRight = uicontrol('Parent',hPanelStdSearch,...
 
 %% -----Panel: Segment Annotation-----
 
-% create a parent panel for optional plots
+% create a parent panel for Segment Annotation
 hPanelParentECGsegAnn = uipanel('Parent',hPanelMain,...
     'Visible','off',...
     'BorderType','none',...
@@ -2248,7 +2208,7 @@ hPanelParentECGsegAnn = uipanel('Parent',hPanelMain,...
     'Position',[0.84 0.01 0.15 0.5],...
     'BackgroundColor',panelColor);
 
-% create a panel related to optional plots
+% create a panel related to Segment Annotation
 hPanelECGsegAnn = uipanel('Parent',hPanelParentECGsegAnn,...
     'Title','Segment Annotation',...
     'BorderType','line',... %
@@ -2256,6 +2216,97 @@ hPanelECGsegAnn = uipanel('Parent',hPanelParentECGsegAnn,...
     'Units','normalized',...
     'Position',[0 0 1 1],...
     'BackgroundColor',panelColor);
+
+% Sub-panel for Display of Segment Annotations
+hPanelSegAnnDisp = uipanel('Parent',hPanelECGsegAnn,...
+    'Title','Display segment annotations',...
+    'BorderType','etchedin',... %
+    'HighlightColor',panelBorderColor,...
+    'Units','normalized',...
+    'Position',[0.05 0.91 0.9 0.08],...
+    'BackgroundColor',panelColor);
+
+% Checkbox, Display ECG segment annotations
+hECGsegAnnCheckbox = uicontrol('Parent',hPanelSegAnnDisp,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.02,0.08,0.3,0.9],...
+    'Value',0,...
+    'String','ECG',...
+    'Enable','on',...
+    'BackgroundColor',panelColor,...
+    'Callback',@ecgSegAnnShowFcn);
+
+hRespSegAnnCheckbox = uicontrol('Parent',hPanelSegAnnDisp,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.35,0.08,0.3,0.9],...
+    'Value',0,...
+    'String','Resp',...
+    'Enable','off',...
+    'BackgroundColor',panelColor,...
+    'Callback',@respSegAnnShowFcn);
+
+hAccelSegAnnCheckbox = uicontrol('Parent',hPanelSegAnnDisp,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.68,0.08,0.3,0.9],...
+    'Value',0,...
+    'String','Accel',...
+    'Enable','off',...
+    'BackgroundColor',panelColor,...
+    'Callback',@accelSegAnnShowFcn);
+
+% Sub-panel for Display of Segment Annotations
+hPanelSegSelM1 = uipanel('Parent',hPanelECGsegAnn,...
+    'Title','Drag-select to add new annotation',...
+    'BorderType','etchedin',... %
+    'HighlightColor',panelBorderColor,...
+    'Units','normalized',...
+    'Position',[0.05 0.76 0.9 0.14],...
+    'BackgroundColor',panelColor);
+
+% Button, Drag-Select
+hButtonSegSelDrag = uicontrol('Parent',hPanelSegSelM1,...
+    'Style','togglebutton',...
+    'Units','normalized',...
+    'Position',[0.02,0.1,0.96,0.8],...
+    'String','Method: Drag',...
+    'FontSize',10,...
+    'Value',0,...
+    'Enable','off',...
+    'Callback',@segSelDragFunc);
+
+% Sub-panel for Display of Segment Annotations
+hPanelSegSelM2 = uipanel('Parent',hPanelECGsegAnn,...
+    'Title','Left-click to add new annotation',...
+    'BorderType','etchedin',... %
+    'HighlightColor',panelBorderColor,...
+    'Units','normalized',...
+    'Position',[0.05 0.61 0.9 0.14],...
+    'BackgroundColor',panelColor);
+
+% Button, Set segment in-point
+hButtonSegSelClick = uicontrol('Parent',hPanelSegSelM2,...
+    'Style','togglebutton',...
+    'Units','normalized',...
+    'Position',[0.02,0.1,0.96,0.8],...
+    'String','Method: Click',...
+    'FontSize',10,...
+    'Value',0,...
+    'Enable','off',...
+    'Callback',@segSelClickFunc);
+
+% Button, Load detection
+hButtonSaveSegAnn = uicontrol('Parent',hPanelECGsegAnn,...
+    'Style','pushbutton',...
+    'Enable','off',...
+    'Units','normalized',...
+    'Position',[0.05,0.5,0.9,0.09],...
+    'String','Save Annotations',...
+    'FontSize',12,...
+    'Callback',@segAnnSaveFunc);
+
 
 %% -----Panel: Miscellaneous Plots-----
 
@@ -2347,7 +2398,7 @@ hPanelAccMag = uipanel('Parent',hPanelOptionalPlots,...
 uicontrol('Parent',hPanelAccMag,...
     'Style','text',...
     'Units','normalized',...
-    'position',[0.02,0.73,0.22,0.18],...
+    'position',[0.02,0.73,0.23,0.18],...
     'HorizontalAlignment','left',...
     'String','Bin count:',...
     'FontWeight','normal',...
@@ -2359,7 +2410,7 @@ hAccMagHistBinCount = uicontrol('Parent',hPanelAccMag,...
     'Style','edit',...
     'Enable','on',...
     'Units','normalized',...
-    'Position',[0.225,0.76,0.12,0.19],...
+    'Position',[0.25,0.76,0.12,0.19],...
     'String','101',...
     'HorizontalAlignment','center',...
     'FontSize',8,...
@@ -2413,7 +2464,7 @@ hAccMagHistXLimMax = uicontrol('Parent',hPanelAccMag,...
 uicontrol('Parent',hPanelAccMag,...
     'Style','text',...
     'Units','normalized',...
-    'position',[0.02,0.47,0.22,0.18],...
+    'position',[0.02,0.47,0.23,0.18],...
     'HorizontalAlignment','left',...
     'String','Bin count:',...
     'FontWeight','normal',...
@@ -2425,7 +2476,7 @@ hAccXYZHistBinCount = uicontrol('Parent',hPanelAccMag,...
     'Style','edit',...
     'Enable','on',...
     'Units','normalized',...
-    'Position',[0.225,0.5,0.12,0.19],...
+    'Position',[0.25,0.5,0.12,0.19],...
     'String','101',...
     'HorizontalAlignment','center',...
     'FontSize',8,...
@@ -2665,10 +2716,22 @@ hPanelSensorDisplay = uipanel('Parent',hPanelMain,...
     'Position',[0.01 0.01 0.82 0.98],...
     'BackgroundColor',panelColor);
 
+% Axes object for ECG segment annotations, behind of ECG axes
+% object, otherwise exact same position.
+hAxesECGsegAnn= axes('Parent',hPanelSensorDisplay,...
+    'Position',[0.045,0.785,0.9,0.19]);
+xlim(hAxesECGsegAnn,'manual');
+ylim(hAxesECGsegAnn,'manual');
+hold(hAxesECGsegAnn,'on');
+set(hAxesECGsegAnn,'Xticklabel',[]);
+set(hAxesECGsegAnn,'Yticklabel',[]);
+hAxesECGsegAnn.TickLength = [0 0];
+hAxesECGsegAnn.YLim = [0 1];
+
 % Axes object for Event Markers plot, behind of ECG axes
 % object, otherwise exact same position.
 hAxesEventMarkers = axes('Parent',hPanelSensorDisplay,...
-    'Position',[0.045,0.785,0.9,0.19]);
+    'Position',[0.045,0.785,0.9,0.19], 'Color', 'none');
 xlim(hAxesEventMarkers,'manual');
 ylim(hAxesEventMarkers,'manual');
 hold(hAxesEventMarkers,'on');
@@ -2715,7 +2778,7 @@ hAxesQRS.YLim = [0 1];
 
 % Axes object for ECG plot
 hAxesECG = axes('Parent',hPanelSensorDisplay,...
-    'Position',[0.045,0.785,0.9,0.19], 'Color', 'none');
+    'Position',[0.045,0.785,0.9,0.19], 'Color', 'none', 'Box', 'on');
 xlim(hAxesECG,'manual');
 %ylim(hAxesECG,'manual');
 hold(hAxesECG,'on');
@@ -2823,7 +2886,7 @@ uicontrol('Parent',hPanelSensorDisplay,...
 
 % Axes object for Respiration plot (impedance)
 hAxesResp = axes('Parent',hPanelSensorDisplay,...
-    'Position',[0.045,0.535,0.9,0.19]);
+    'Position',[0.045,0.535,0.9,0.19], 'Box', 'on');
 xlim(hAxesResp,'manual');
 % ylim(hAxesResp,'manual');
 hold(hAxesResp,'on');
@@ -2868,7 +2931,7 @@ uicontrol('Parent',hPanelSensorDisplay,...
 
 % Axes object for Acceleration plot
 hAxesAccel = axes('Parent',hPanelSensorDisplay,...
-    'Position',[0.045,0.285,0.9,0.19]);
+    'Position',[0.045,0.285,0.9,0.19], 'Box', 'on');
 xlim(hAxesAccel,'manual');
 % ylim(hAxesAccel,'manual');
 hold(hAxesAccel,'on');
@@ -2976,7 +3039,7 @@ uicontrol('Parent',hPanelSensorDisplay,...
 
 % Axes object for Temperature plot
 hAxesTemp = axes('Parent',hPanelSensorDisplay,...
-    'Position',[0.045,0.04,0.9,0.19]);
+    'Position',[0.045,0.04,0.9,0.19], 'Box', 'on');
 xlim(hAxesTemp,'manual');
 % ylim(hAxesTemp,'manual');
 hold(hAxesTemp,'on');
@@ -3126,12 +3189,13 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     full_path = [pathName fileName];
             end
             % clear axes before displaying new data
-            clearAxes([hAxesEventMarkers,hAxesECGMarkers,hAxesECGkitClass,hAxesQRS,hAxesECG hAxesResp hAxesAccel hAxesTemp]);
+            clearAxes([hAxesECGsegAnn,hAxesEventMarkers,hAxesECGMarkers,hAxesECGkitClass,hAxesQRS,hAxesECG hAxesResp hAxesAccel hAxesTemp]);
             drawnow;
             eventAddMarkersOffOnLoad;
             ecgkitAddMarkersOffOnLoad;
             reportIOmarkers = [];
             eventMarkers = [];
+            segAnns = [];
             if hParentPanels(3).Visible
                 updateEcgkitListbox(hECGkitListBox,reportIOmarkers,xAxisTimeStamps,timeBase,0);
             end
@@ -3139,7 +3203,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,hEventListBox.Value);
             end
             disableButtons(hButtonEventMarkerAddToggle,hButtonECGkitMarkerAddToggle,hButtonECGkitMarkerOut,hButtonECGkitMarkerDel,hButtonECGkitMarkerEdit,hButtonECGkitMarkerSave);
-            disableButtons(hIBIsearchLeft,hIBIsearchRight,hIBIdiffSearchLeft,hIBIdiffSearchRight,hBtAnalyseSegments,hStdSearchLeft,hStdSearchRight);
+            disableButtons(hButtonSaveECGkitClass,hIBIsearchLeft,hIBIsearchRight,hIBIdiffSearchLeft,hIBIdiffSearchRight,hBtAnalyseSegments,hStdSearchLeft,hStdSearchRight);
+            deselectButtons(hButtonSegSelDrag,hButtonSegSelClick);
+            segSelDragFunc([],[]); segSelClickFunc([],[]);
             cS = []; qrsAnn = cell(0); ibims = []; ibiDiffms = []; qrsAnnIndices = []; stdIBISegments = []; ibiSegmentSampleNums = [];
             classCountInfoReset(hClassCountN,hClassCountS,hClassCountV,hClassCountF,hClassCountU,hClassCountArtefact);
             gS.dataLoaded = loadAndFormatData;
@@ -3170,7 +3236,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,hEventListBox.Value);
                 end
                 plotSensorData;
-                enableButtons(hPopupRange,hRangeButton,hButtonDetectQRS,hButtonLoadQRS,hButtonExportECGtoMIT,hButtonExportECGtoCSV,hButtonExportECGtoKubios,hButtonECGkitGenReport,hButtonLoadECGkitClass);
+                enableButtons(hPopupRange,hRangeButton,hButtonDetectQRS,hButtonLoadQRS,hButtonExportECGtoMIT,hButtonExportECGtoCSV,hButtonExportECGtoKubios,hButtonECGkitGenReport,hButtonLoadECGkitClass,hButtonSegSelDrag,hButtonSegSelClick,hButtonSaveSegAnn);
                 enableButtons(hButtonEventMarkerAddToggle,hButtonEventMarkerDel,hButtonEventMarkerEdit,hButtonEventMarkerSave,hButtonECGkitMarkerAddToggle,hButtonECGkitMarkerOut,hButtonECGkitMarkerDel,hButtonECGkitMarkerEdit,hButtonECGkitMarkerSave);
             end
         end
@@ -3204,6 +3270,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         end
         eventMarkers = initializEventMarkers(jsondata,eventMarkers);
         reportIOmarkers = initializeReportIOmarkers(jsondata,reportIOmarkers);
+        segAnns = initializeSegmentAnnotations(jsondata,segAnns);
         
         dataLoaded = false;
         % Create a new C3 object
@@ -3422,9 +3489,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
     function plotSensorData()
+        plotECGsegAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,segAnns,hAxesECGsegAnn,hECGsegAnnCheckbox,gS);
         plotEventMarkers(rangeStartIndex.Accel,rangeEndIndex.Accel,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS);
         plotECGMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
-        plotECGkitClass(rangeStartIndex.ECG,rangeEndIndex.ECG,cS,hAxesECGkitClass,hECGkitClassCheckbox,gS,CM_beatClass);
+%         plotECGkitClass(rangeStartIndex.ECG,rangeEndIndex.ECG,cS,hAxesECGkitClass,hECGkitClassCheckbox,gS,CM_beatClass);
         plotQRSann(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,qrsAnn,ibims,hAxesQRS,hDisplayBeatsCheckbox,hDisplayIBICheckbox,gS);
         plotECG(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox,hECGleadoffCheckbox,hECGkitClassCheckbox,cS,gS,CM_beatClass)
         plotResp(C3,rangeStartIndex.Resp,rangeEndIndex.Resp,xAxisTimeStamps,timeBase,hAxesResp,hRespCheckbox);
@@ -3449,21 +3517,55 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             elseif gS.dataLoaded && gS.eventMarkerMode
                 [gS,eventMarkers] = addEventMarker(point1(1,1),xAxisTimeStamps,timeBase,gS,eventMarkers,hEventMarkerDescription,hEventListBox,hButtonEventMarkerSave,editColorGreen,sampleRateFactor);
                 plotEventMarkers(rangeStartIndex.Accel,rangeEndIndex.Accel,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS);
+            elseif gS.dataLoaded && strcmp(gS.segAnnMode,'click')
+                if hAx == hAxesECG
+                    [gS,segAnns] = addSegAnnClick(point1(1,1),xAxisTimeStamps,timeBase,gS,segAnns,'ECG',hButtonSegSelClick);
+                    plotECGsegAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,segAnns,hAxesECGsegAnn,hECGsegAnnCheckbox,gS);
+                elseif hAx == hAxesResp
+                    [gS,segAnns] = addSegAnnClick(point1(1,1),xAxisTimeStamps,timeBase,gS,segAnns,'Resp',hButtonSegSelClick);
+                elseif hAx == hAxesAccel
+                    [gS,segAnns] = addSegAnnClick(point1(1,1),xAxisTimeStamps,timeBase,gS,segAnns,'Accel',hButtonSegSelClick);
+                end
             end
-        % if click and drag
+        % if click-and-drag
         else
             % Define min and max x and y values
             xMin = min([point1(1,1), point2(1,1)]);
             xMax = max([point1(1,1), point2(1,1)]);
 %             yMin = min([point1(1,2), point2(1,2)]);
 %             yMax = max([point1(1,2), point2(1,2)]);
-            % find corresponding data indices
-            [rangeStartIndex, rangeEndIndex] = getRangeIndices(xAxisTimeStamps,timeBase,xMin,xMax,sampleRateFactor);
-            setRangeSlider(C3,rangeStartIndex,rangeEndIndex,hRangeSlider);
-            enableButtons(hResetButton,hRangeSlider,hPopupEvent,hNavEventLeftButton,hNavEventRightButton);
-            % update range info text
-            setRangeInfo(xAxisTimeStamps,timeBase,rangeStartIndex,rangeEndIndex,hTextTimeDisplayed);
-            plotSensorData;
+            if gS.dataLoaded && strcmp(gS.segAnnMode,'drag')
+                if hAx == hAxesECG
+                    [gS,segAnns] = addSegAnnDrag(xMin,xMax,xAxisTimeStamps,timeBase,gS,segAnns,'ECG',sampleRateFactor);
+                    plotECGsegAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,segAnns,hAxesECGsegAnn,hECGsegAnnCheckbox,gS);
+                elseif hAx == hAxesResp
+                    [gS,segAnns] = addSegAnnDrag(xMin,xMax,xAxisTimeStamps,timeBase,gS,segAnns,'Resp',sampleRateFactor);
+                elseif hAx == hAxesAccel
+                    [gS,segAnns] = addSegAnnDrag(xMin,xMax,xAxisTimeStamps,timeBase,gS,segAnns,'Accel',sampleRateFactor);
+                end
+            elseif gS.classAnnDragSel
+                if hAx == hAxesECG
+                    csIdxSel = getClassAnnIdx(xMin,xMax,xAxisTimeStamps,timeBase,cS,sampleRateFactor);
+                    choiceClassAnn = dialogAnnClass();
+                    if ~isempty(choiceClassAnn)
+                        if choiceClassAnn ~= '-' 
+                            cS.anntyp(csIdxSel) = choiceClassAnn;
+                        else
+                            cS.anntyp(csIdxSel) = [];
+                            cS.time(csIdxSel) = [];
+                        end
+                        plotECG(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox,hECGleadoffCheckbox,hECGkitClassCheckbox,cS,gS,CM_beatClass);
+                    end                    
+                end
+            else
+                % find corresponding data indices
+                [rangeStartIndex, rangeEndIndex] = getRangeIndices(xAxisTimeStamps,timeBase,xMin,xMax,sampleRateFactor);
+                setRangeSlider(C3,rangeStartIndex,rangeEndIndex,hRangeSlider);
+                enableButtons(hResetButton,hRangeSlider,hPopupEvent,hNavEventLeftButton,hNavEventRightButton);
+                % update range info text
+                setRangeInfo(xAxisTimeStamps,timeBase,rangeStartIndex,rangeEndIndex,hTextTimeDisplayed);
+                plotSensorData;
+            end
         end
     end
 
@@ -3712,6 +3814,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hParentPanels(6).Visible = 'off';
             hParentPanels(7).Visible = 'off';
             hParentPanels(8).Visible = 'off';
+            hParentPanels(9).Visible = 'off';
         % if item 2 ('Event Annotation') is selected
         elseif hPopupPanel.Value == 2
             hParentPanels(1).Visible = 'off';
@@ -3722,6 +3825,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hParentPanels(6).Visible = 'off';
             hParentPanels(7).Visible = 'off';
             hParentPanels(8).Visible = 'off';
+            hParentPanels(9).Visible = 'off';
         % if item 3 ('ECGkit Analysis') is selected
         elseif hPopupPanel.Value == 3
             hParentPanels(1).Visible = 'off';
@@ -3732,6 +3836,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hParentPanels(6).Visible = 'off';
             hParentPanels(7).Visible = 'off';
             hParentPanels(8).Visible = 'off';
+            hParentPanels(9).Visible = 'off';
         % if item 4 ('ECGkit Results') is selected
         elseif hPopupPanel.Value == 4
             hParentPanels(1).Visible = 'off';
@@ -3742,6 +3847,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hParentPanels(6).Visible = 'off';
             hParentPanels(7).Visible = 'off';
             hParentPanels(8).Visible = 'off';
+            hParentPanels(9).Visible = 'off';
         % if item 5 ('QRS Detection') is selected
         elseif hPopupPanel.Value == 5
             hParentPanels(1).Visible = 'off';
@@ -3752,6 +3858,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hParentPanels(6).Visible = 'off';
             hParentPanels(7).Visible = 'off';
             hParentPanels(8).Visible = 'off';
+            hParentPanels(9).Visible = 'off';
         % if item 6 ('Interbeat Intervals') is selected
         elseif hPopupPanel.Value == 6
             hParentPanels(1).Visible = 'off';
@@ -3762,6 +3869,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hParentPanels(6).Visible = 'on';
             hParentPanels(7).Visible = 'off';
             hParentPanels(8).Visible = 'off';
+            hParentPanels(9).Visible = 'off';
         elseif hPopupPanel.Value == 7
             hParentPanels(1).Visible = 'off';
             hParentPanels(2).Visible = 'off';
@@ -3771,6 +3879,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hParentPanels(6).Visible = 'off';
             hParentPanels(7).Visible = 'on';
             hParentPanels(8).Visible = 'off';
+            hParentPanels(9).Visible = 'off';
         elseif hPopupPanel.Value == 8
             hParentPanels(1).Visible = 'off';
             hParentPanels(2).Visible = 'off';
@@ -3780,6 +3889,17 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hParentPanels(6).Visible = 'off';
             hParentPanels(7).Visible = 'off';
             hParentPanels(8).Visible = 'on';
+            hParentPanels(9).Visible = 'off';
+        elseif hPopupPanel.Value == 9
+            hParentPanels(1).Visible = 'off';
+            hParentPanels(2).Visible = 'off';
+            hParentPanels(3).Visible = 'off';
+            hParentPanels(4).Visible = 'off';
+            hParentPanels(5).Visible = 'off';
+            hParentPanels(6).Visible = 'off';
+            hParentPanels(7).Visible = 'off';
+            hParentPanels(8).Visible = 'off';
+            hParentPanels(9).Visible = 'on';
         end
     end
 
@@ -3843,6 +3963,144 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         end
     end
 
+    function ecgSegAnnShowFcn(~,~)
+        if hECGsegAnnCheckbox.Value == 1
+            gS.segAnnDispECG = true;
+            plotECGsegAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,segAnns,hAxesECGsegAnn,hECGsegAnnCheckbox,gS);
+        else
+            gS.segAnnDispECG = false;
+            cla(hAxesECGsegAnn);
+        end
+    end
+
+    function respSegAnnShowFcn(~,~)
+        if hRespSegAnnCheckbox.Value == 1
+            gS.segAnnDispResp = true;
+%             plotRespSegAnn(rangeStartIndex.Resp,rangeEndIndex.Resp,hAxesRespSegAnn,hRespSegAnnCheckbox,gS);
+        else
+            gS.segAnnDispResp = false;
+%             cla(hAxesRespSegAnn);
+        end
+    end
+
+    function accelSegAnnShowFcn(~,~)
+        if hAccelSegAnnCheckbox.Value == 1
+            gS.segAnnDispAccel = true;
+%             plotAccelSegAnn(rangeStartIndex.Accel,rangeEndIndex.Accel,hAxesAccelSegAnn,hAccelSegAnnCheckbox,gS);
+        else
+            gS.segAnnDispAccel = false;
+%             cla(hAxesAccelSegAnn);
+        end
+    end
+
+    function classAnnSelFunc(~,~)
+        if hBtnClassAnnSel.Value == 1
+            gS.classAnnDragSel = true;
+            hBtnClassAnnSel.BackgroundColor = editColorGreen;
+            % disable other marker and selection modes
+            deselectButtons(hButtonSegSelClick,hButtonSegSelDrag);
+            segSelDragFunc([],[]);
+            segSelClickFunc([],[]);
+            gS = deselectEventMarkerMode(hButtonEventMarkerAddToggle,hEventMarkerDescription,gS,panelColor,editColor);
+            [gS,reportIOmarkers] = deselectReportMarkerMode(hButtonECGkitMarkerAddToggle,hECGkitMarkerDescription,hButtonECGkitMarkerOut,hECGkitMarkerOutHrs,hECGkitMarkerOutMin,hECGkitMarkerOutSec,reportIOmarkers,gS,panelColor,editColor);
+        else
+            gS.classAnnDragSel = false;
+            hBtnClassAnnSel.BackgroundColor = panelColor;
+        end
+    end
+
+    function segSelDragFunc(~,~)
+        if hButtonSegSelDrag.Value == 1
+            gS.segAnnMode = 'drag';
+            hButtonSegSelDrag.BackgroundColor = editColorGreen;
+            % Disable other marker and selection modes
+            deselectButtons(hButtonSegSelClick,hBtnClassAnnSel);
+            hButtonSegSelClick.BackgroundColor = panelColor;
+            hButtonSegSelClick.String = 'Method: Click';
+            gS.classAnnDragSel = false;
+            hBtnClassAnnSel.BackgroundColor = panelColor;
+            gS = deselectEventMarkerMode(hButtonEventMarkerAddToggle,hEventMarkerDescription,gS,panelColor,editColor);
+            [gS,reportIOmarkers] = deselectReportMarkerMode(hButtonECGkitMarkerAddToggle,hECGkitMarkerDescription,hButtonECGkitMarkerOut,hECGkitMarkerOutHrs,hECGkitMarkerOutMin,hECGkitMarkerOutSec,reportIOmarkers,gS,panelColor,editColor);
+        else
+            hButtonSegSelDrag.BackgroundColor = panelColor;
+        end
+        if hButtonSegSelDrag.Value == 0 && hButtonSegSelClick.Value == 0
+            gS.segAnnMode = 'none';
+        end
+    end
+
+    function segSelClickFunc(~,~)
+        if hButtonSegSelClick.Value == 1
+            gS.segAnnMode = 'click';
+            hButtonSegSelClick.BackgroundColor = editColorGreen;
+            deselectButtons(hButtonSegSelDrag,hBtnClassAnnSel);
+            hButtonSegSelDrag.BackgroundColor = panelColor;
+            hButtonSegSelClick.String = 'Method: Click (Set In-point)';
+            % Disable other marker and selection modes
+            gS.classAnnDragSel = false;
+            hBtnClassAnnSel.BackgroundColor = panelColor;
+            gS = deselectEventMarkerMode(hButtonEventMarkerAddToggle,hEventMarkerDescription,gS,panelColor,editColor);
+            [gS,reportIOmarkers] = deselectReportMarkerMode(hButtonECGkitMarkerAddToggle,hECGkitMarkerDescription,hButtonECGkitMarkerOut,hECGkitMarkerOutHrs,hECGkitMarkerOutMin,hECGkitMarkerOutSec,reportIOmarkers,gS,panelColor,editColor);
+        else
+            hButtonSegSelClick.BackgroundColor = panelColor;
+            hButtonSegSelClick.String = 'Method: Click';
+            % make sure there's no In-point hanging, when turning off Add-markers mode
+            if gS.segAnnECGInSet
+                segAnns.ecg(end) = [];
+                gS.segAnnECGInSet = false;
+            end
+        end
+        if hButtonSegSelDrag.Value == 0 && hButtonSegSelClick.Value == 0
+            gS.segAnnMode = 'none';
+        end
+    end
+
+    function segAnnSaveFunc(~,~)
+        if ~isempty(json_fullpath)
+            if ~isempty(segAnns)
+                % load the JSON again, so any recent saves (e.g. of report markers) are preserved
+                % NOTE, TO DO: implement that jsondata is always updated with
+                % changes applied to eventMarkers, reportIOmarkers, and segAnns.
+                jsondata = loadjson(json_fullpath);
+                % Segment annotations, ECG
+                if isfield(segAnns,'ecg') && size(segAnns.ecg,2) > 0
+                    numAnnsECG = size(segAnns.ecg,2);
+                    jsondata.segmentannotations.ecg = cell(1,numAnnsECG);
+                    for ii=1:numAnnsECG
+                        jsondata.segmentannotations.ecg{1,ii}.ann = segAnns.ecg(ii).ann;
+                        jsondata.segmentannotations.ecg{1,ii}.inindex = segAnns.ecg(ii).inindex;
+                        jsondata.segmentannotations.ecg{1,ii}.outindex = segAnns.ecg(ii).outindex;
+                    end
+                end
+                % Segment annotations, Resp
+                if isfield(segAnns,'resp') && size(segAnns.resp,2) > 0
+                    numAnnsResp = size(segAnns.resp,2);
+                    jsondata.segmentannotations.resp = cell(1,numAnnsResp);
+                    for ii=1:numAnnsResp
+                        jsondata.segmentannotations.resp{1,ii}.ann = segAnns.resp(ii).ann;
+                        jsondata.segmentannotations.resp{1,ii}.inindex = segAnns.resp(ii).inindex;
+                        jsondata.segmentannotations.resp{1,ii}.outindex = segAnns.resp(ii).outindex;
+                    end
+                end
+                % Segment annotations, Accel
+                if isfield(segAnns,'accel') && size(segAnns.accel,2) > 0
+                    numAnnsAccel = size(segAnns.accel,2);
+                    jsondata.segmentannotations.accel = cell(1,numAnnsAccel);
+                    for ii=1:numAnnsAccel
+                        jsondata.segmentannotations.accel{1,ii}.ann = segAnns.accel(ii).ann;
+                        jsondata.segmentannotations.accel{1,ii}.inindex = segAnns.accel(ii).inindex;
+                        jsondata.segmentannotations.accel{1,ii}.outindex = segAnns.accel(ii).outindex;
+                    end
+                end
+                savejson('',jsondata,'FileName',json_fullpath,'ParseLogical',1);
+            else
+                warndlg('No annotations to save.');
+            end
+        else
+            warndlg('No JSON file was loaded! Can not save annotations.');
+        end
+    end
+
     function eventsShowMarkersFcn(~,~)
         if hEventMarkersCheckbox.Value == 1
             plotEventMarkers(rangeStartIndex.Accel,rangeEndIndex.Accel,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS);
@@ -3867,9 +4125,22 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hButtonEventMarkerAddToggle.BackgroundColor = editColorGreen;
             hEventMarkerDescription.BackgroundColor = editColorGreen;
             hButtonEventMarkerSave.BackgroundColor = editColorGreen;
-            % trun ECGkit marker mode off, if Event marker mode is turned on
+            % turn off other selection modes
+            deselectButtons(hButtonSegSelClick,hButtonSegSelDrag,hBtnClassAnnSel);
+            gS.classAnnDragSel = false;
+            hBtnClassAnnSel.BackgroundColor = panelColor;
+            % turn other selection and marker modes off
             if gS.ecgMarkerMode
                 ecgkitAddMarkersToggleFunc;
+            end
+            if gS.classAnnDragSel
+                gS = deselectClassAnnDragSelMode(hBtnClassAnnSel,gS,panelColor);
+            end
+            if strcmp(gS.segAnnMode,'drag')
+                gS = deselectSegSelDragMode(hButtonSegSelDrag,gS,panelColor);
+            end
+            if strcmp(gS.segAnnMode,'click')
+                [gS,segAnns] = deselectSegSelClickMode(hButtonSegSelClick,segAnns,gS,panelColor);
             end
             if ~isempty(jsondata)
                 if ~isfield(jsondata,'events')
@@ -3988,9 +4259,18 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hECGkitMarkerOutMin.BackgroundColor = editColorGreen;
             hECGkitMarkerOutSec.BackgroundColor = editColorGreen;
             hButtonECGkitMarkerSave.BackgroundColor = editColorGreen;
-            % trun Event marker mode off, if ECGkit marker mode is turned on
+            % turn other selection and marker modes off
             if gS.eventMarkerMode
                 eventAddMarkersToggleFunc;
+            end
+            if gS.classAnnDragSel
+                gS = deselectClassAnnDragSelMode(hBtnClassAnnSel,gS,panelColor);
+            end
+            if strcmp(gS.segAnnMode,'drag')
+                gS = deselectSegSelDragMode(hButtonSegSelDrag,gS,panelColor);
+            end
+            if strcmp(gS.segAnnMode,'click')
+                [gS,segAnns] = deselectSegSelClickMode(hButtonSegSelClick,segAnns,gS,panelColor);
             end
             if ~isempty(jsondata)
                 if ~isfield(jsondata,'reportmarkers')
@@ -4159,11 +4439,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     cS = load(classification_fullpath);
                     classCountInfoUpdate(hClassCountN,hClassCountS,hClassCountV,hClassCountF,hClassCountU,hClassCountArtefact,cS);
                     cS.time = cS.time + jsondata_class_segment.ecgsampleoffset;
-                    enableButtons(hButtonNavLeftClass,hButtonNavRightClass,hPopupClass);
+                    enableButtons(hButtonNavLeftClass,hButtonNavRightClass,hPopupClass,hBtnClassAnnSel,hButtonSaveECGkitClass);
                     hECGkitClassCheckbox.Value = 1;
 %                     plotECGkitClass(rangeStartIndex.ECG,rangeEndIndex.ECG,cS,hAxesECGkitClass,hECGkitClassCheckbox,gS,CM_beatClass);
                     plotECG(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox,hECGleadoffCheckbox,hECGkitClassCheckbox,cS,gS,CM_beatClass);
-                    hButtonSaveECGkitClass.Enable = 'on';
                 elseif ~isempty(jsondata_class_segment) && ~isfield(jsondata_class_segment,'ecgsampleoffset')
                     warndlg(sprintf(['JSON file for this analysis segment did not contain an "ecgsampleoffset" field!\n\n'...
                     'Heartbeat classifications can not be displayed in ECG plot.\nPlease perform a new ECGkit analysis.']));
@@ -4188,7 +4467,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
 
     function saveEcgkitClassFunc(~,~)
         %savejson('',jsondata_class_segment,'FileName',jsondata_class_fullpath,'ParseLogical',1);
-        % NOTE: THIS NEEDS RETHINKING: The workflow of loading and saving classification data that
+        % NOTE: THIS NEEDS RETHINKING. The workflow of loading and saving classification data that
         % relates to segments of the original full recording.
         cS.time = cS.time - jsondata_class_segment.ecgsampleoffset;
         save(classification_fullpath,'-struct','cS');
@@ -4576,7 +4855,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         screenSize = get(0,'screensize');
         winXpos = 10; %round(screenSize(3)*0.05);
         winYpos = round(screenSize(4)*0.5) - round(screenSize(4)*0.1);
-        winWidth = round(screenSize(3)*0.85);
+        winWidth = round(screenSize(3)*0.975);
         winHeight = round(screenSize(4)*0.5);
         xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'ECG');
         plotOptions = getPlotOptions(timeBase);
@@ -4636,7 +4915,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         screenSize = get(0,'screensize');
         winXpos = 10; %round(screenSize(3)*0.05);
         winYpos = round(screenSize(4)*0.5) - round(screenSize(4)*0.2);
-        winWidth = round(screenSize(3)*0.85);
+        winWidth = round(screenSize(3)*0.975);
         winHeight = round(screenSize(4)*0.5);
         xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'Resp');
         plotOptions = getPlotOptions(timeBase);
@@ -4667,7 +4946,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         screenSize = get(0,'screensize');
         winXpos = 10;%round(screenSize(3)*0.05)
         winYpos = round(screenSize(4)*0.5) - round(screenSize(4)*0.3);
-        winWidth = round(screenSize(3)*0.85);%*0.5
+        winWidth = round(screenSize(3)*0.975);%*0.5
         winHeight = round(screenSize(4)*0.5);
         xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'Accel');
         plotOptions = getPlotOptions(timeBase);
@@ -4726,7 +5005,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         screenSize = get(0,'screensize');
         winXpos = 10; %round(screenSize(3)*0.05);
         winYpos = round(screenSize(4)*0.5) - round(screenSize(4)*0.4);
-        winWidth = round(screenSize(3)*0.85);
+        winWidth = round(screenSize(3)*0.975);
         winHeight = round(screenSize(4)*0.5);
         xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'Temp');
         plotOptions = getPlotOptions(timeBase);
@@ -4860,7 +5139,55 @@ function plotECGMarkers(startIdx,endIdx,reportIOmarkers,hAxesECGMarkers,hAnalysi
                 text(reportIOmarkers(nonSelectedMarkers(ii)).inEcgIndex, 0.075, sprintf('%02d',nonSelectedMarkers(ii)), 'HorizontalAlignment', 'left', 'FontSize', 8, 'FontWeight', 'bold', 'BackgroundColor', gS.colors.col{8}, 'Color', gS.colors.col{5}, 'Margin', 0.4, 'EdgeColor', 'none', 'Parent', hAxesECGMarkers);
                 text(reportIOmarkers(nonSelectedMarkers(ii)).outEcgIndex-outLabelOffset, 0.075, sprintf('%02d',nonSelectedMarkers(ii)), 'HorizontalAlignment', 'left', 'FontSize', 8, 'FontWeight', 'bold', 'BackgroundColor', gS.colors.col{8}, 'Color', gS.colors.col{5}, 'Margin', 0.4, 'EdgeColor', 'none', 'Parent', hAxesECGMarkers);
             end
+        end
+    end
+end
 
+function plotECGsegAnn(startIdx,endIdx,segAnns,hAxesECGsegAnn,hECGsegAnnCheckbox,gS)
+    cla(hAxesECGsegAnn);
+    if hECGsegAnnCheckbox.Value == 1
+        if ~isempty(segAnns) && isfield(segAnns,'ecg') && size(segAnns.ecg,2) > 0
+            hAxesECGsegAnn.XLim = [startIdx endIdx];
+            % find annotations within displayed range
+%             annIdxBool = ([segAnns.ecg.outindex] >= startIdx & [segAnns.ecg.outindex] <= endIdx) | (startIdx >= [segAnns.ecg.inindex] & endIdx <= [segAnns.ecg.outindex]); 
+%             annIdx = find(annIdxBool);
+%             % plot annotations, color according to label
+%             for ii=1:length(annIdx)
+%                 if strcmp(segAnns.ecg(annIdx(ii)).ann,'Noise')
+%                     annCol = [gS.colors.col{13} 0.2];
+%                 elseif strcmp(segAnns.ecg(annIdx(ii)).ann,'Afib')
+%                     annCol = [gS.colors.col{9} 0.2];
+%                 else
+%                     annCol = [1 1 0 0.2];%gS.colors.col{12};
+%                 end
+%                 rectangle('Position',[segAnns.ecg(annIdx(ii)).inindex 0 (segAnns.ecg(annIdx(ii)).outindex-segAnns.ecg(annIdx(ii)).inindex) 1],'LineStyle','none','FaceColor',annCol,'Parent',hAxesECGsegAnn);
+%                 text(segAnns.ecg(annIdx(ii)).inindex, 0.05, segAnns.ecg(annIdx(ii)).ann, 'HorizontalAlignment', 'left', 'FontSize', 9, 'FontWeight', 'bold', 'Color', gS.colors.col{4}, 'EdgeColor', 'none', 'Parent', hAxesECGsegAnn);%, 'BackgroundColor', annCol, 'Margin', 0.6
+% %                 % Set c to be the text's UIContextMenu
+% %                 hTxt.UIContextMenu = CM_beatClass;
+%                 plot annotations, color according to label
+%             end
+            if gS.segAnnECGInSet
+                numSegAnns = length(segAnns.ecg)-1;
+            else
+                numSegAnns = length(segAnns.ecg);
+            end
+            for ii=1:numSegAnns
+%                 if strcmp(segAnns.ecg(ii).ann,'Noise')
+%                     annCol = [gS.colors.col{13} 0.2];
+%                 elseif strcmp(segAnns.ecg(ii).ann,'Afib')
+%                     annCol = [gS.colors.col{9} 0.2];
+%                 else
+%                     annCol = [1 1 0 0.2];%gS.colors.col{12};
+%                 end
+                annCol = [0 0 0 0.1];
+                rectangle('Position',[segAnns.ecg(ii).inindex 0 (segAnns.ecg(ii).outindex-segAnns.ecg(ii).inindex) 1],'LineStyle','none','FaceColor',annCol,'Parent',hAxesECGsegAnn);
+                if (endIdx-startIdx) < 30001
+                    text(segAnns.ecg(ii).inindex, 0.05, segAnns.ecg(ii).ann, 'HorizontalAlignment', 'left', 'FontSize', 9, 'FontWeight', 'bold', 'Color', gS.colors.col{4}, 'EdgeColor', 'none', 'Parent', hAxesECGsegAnn);%, 'BackgroundColor', annCol, 'Margin', 0.6
+                end
+%                 % Set c to be the text's UIContextMenu
+%                 hTxt.UIContextMenu = CM_beatClass;
+            end
+%             refreshdata(hAxesECGsegAnn);
         end
     end
 end
@@ -6738,6 +7065,75 @@ function physiobank_fullpath = exportECGtoPhysiobankFile(C3,indexStartECG,indexE
     fclose(fid);
 end
 
+function csIdxSel = getClassAnnIdx(xMin,xMax,xAxisTimeStamps,timeBase,cS,sampleRateFactor)
+    [rangeStartIndex, rangeEndIndex] = getRangeIndices(xAxisTimeStamps,timeBase,xMin,xMax,sampleRateFactor);
+    if ~isempty(cS)
+    % find beats within displayed range
+        cSindicesBool = cS.time >= rangeStartIndex.ECG & cS.time <= rangeEndIndex.ECG; 
+        csIdxSel = find(cSindicesBool);
+    else
+        csIdxSel = [];
+    end
+end
+
+function [gS,segAnns] = addSegAnnClick(timePoint,xAxisTimeStamps,timeBase,gS,segAnns,signalName,hButtonSegSelClick)
+    if strcmp(signalName,'ECG')
+%         fprintf('Seg Ann mode: Click.  Axes: %s\n',signalName);
+        if isempty(segAnns)
+        	numSegAnns = 0;
+        elseif ~isempty(segAnns) && isfield(segAnns,'ecg')
+            numSegAnns = size(segAnns.ecg,2);
+        else
+            numSegAnns = 0;
+        end
+        ecgIndex = getEcgIndexPoint(xAxisTimeStamps,timeBase,timePoint);
+        % if open for in-point
+        if ~gS.segAnnECGInSet
+            segAnns.ecg(numSegAnns+1).inindex = ecgIndex;
+            gS.segAnnECGInSet = true;
+            hButtonSegSelClick.String = 'Method: Click (Set Out-point)';
+        else
+            if ecgIndex > segAnns.ecg(numSegAnns).inindex
+                segAnns.ecg(numSegAnns).outindex = ecgIndex;
+                gS.segAnnECGInSet = false;
+                ECGann = dialogAnnECG();
+                segAnns.ecg(numSegAnns).ann = ECGann;
+                hButtonSegSelClick.String = 'Method: Click (Set In-point)';
+            else
+                warndlg(sprintf('ECG segment annotation Out-point <= In-point!\nOut-point not set! Please choose another point.'));
+            end
+        end
+    elseif strcmp(signalName,'Resp')
+%         fprintf('Seg Ann mode: Click.  Axes: %s\n',signalName);
+    elseif strcmp(signalName,'Accel')
+%         fprintf('Seg Ann mode: Click.  Axes: %s\n',signalName);
+    end
+end
+
+function [gS,segAnns] = addSegAnnDrag(xMin,xMax,xAxisTimeStamps,timeBase,gS,segAnns,signalName,sampleRateFactor)
+    [rangeStartIndex, rangeEndIndex] = getRangeIndices(xAxisTimeStamps,timeBase,xMin,xMax,sampleRateFactor);
+    if strcmp(signalName,'ECG')
+%         fprintf('Seg Ann mode: Drag.  Axes: %s  xMin: %f  xMax: %f\n',signalName,xMin,xMax);
+        if isempty(segAnns)
+        	numSegAnns = 0;
+        elseif ~isempty(segAnns) && isfield(segAnns,'ecg')
+            numSegAnns = size(segAnns.ecg,2);
+        else
+            numSegAnns = 0;
+        end
+%         ecgInIndex = getEcgIndexPoint(xAxisTimeStamps,timeBase,xMin);
+%         ecgOutIndex = getEcgIndexPoint(xAxisTimeStamps,timeBase,xMax);
+        segAnns.ecg(numSegAnns+1).inindex = rangeStartIndex.ECG;
+        segAnns.ecg(numSegAnns+1).outindex = rangeEndIndex.ECG;
+        ECGann = dialogAnnECG();
+        segAnns.ecg(numSegAnns+1).ann = ECGann;
+    elseif strcmp(signalName,'Resp')
+%         fprintf('Seg Ann mode: Drag.  Axes: %s  xMin: %f  xMax: %f\n',signalName,xMin,xMax);
+    elseif strcmp(signalName,'Accel')
+%         fprintf('Seg Ann mode: Drag.  Axes: %s  xMin: %f  xMax: %f\n',signalName,xMin,xMax);
+    end
+end
+
 function [gS,eventMarkers] = addEventMarker(timePoint,xAxisTimeStamps,timeBase,gS,eventMarkers,hEventMarkerDescription,hEventListBox,hButtonEventMarkerSave,editColorGreen,sampleRateFactor)
     accelIndex = getAccelIndexPoint(xAxisTimeStamps,timeBase,timePoint);
     if isempty(eventMarkers)
@@ -6956,6 +7352,32 @@ function reportIOmarkers = initializeReportIOmarkers(jsondata,reportIOmarkers)
     end
 end
 
+function segAnns = initializeSegmentAnnotations(jsondata,segAnns)
+    if isfield(jsondata,'segmentannotations')
+        if isfield(jsondata.segmentannotations,'ecg') && ~isempty(jsondata.segmentannotations.ecg)
+            for ii=1:size(jsondata.segmentannotations.ecg,2)
+                segAnns.ecg(ii).ann = jsondata.segmentannotations.ecg{1,ii}.ann;
+                segAnns.ecg(ii).inindex = jsondata.segmentannotations.ecg{1,ii}.inindex;
+                segAnns.ecg(ii).outindex = jsondata.segmentannotations.ecg{1,ii}.outindex;
+            end
+        end
+        if isfield(jsondata.segmentannotations,'resp') && ~isempty(jsondata.segmentannotations.resp)
+            for ii=1:size(jsondata.segmentannotations.resp,2)
+                segAnns.resp(ii).ann = jsondata.segmentannotations.resp{1,ii}.ann;
+                segAnns.resp(ii).inindex = jsondata.segmentannotations.resp{1,ii}.inindex;
+                segAnns.resp(ii).outindex = jsondata.segmentannotations.resp{1,ii}.outindex;
+            end
+        end
+        if isfield(jsondata.segmentannotations,'accel') && ~isempty(jsondata.segmentannotations.accel)
+            for ii=1:size(jsondata.segmentannotations.accel,2)
+                segAnns.accel(ii).ann = jsondata.segmentannotations.accel{1,ii}.ann;
+                segAnns.accel(ii).inindex = jsondata.segmentannotations.accel{1,ii}.inindex;
+                segAnns.accel(ii).outindex = jsondata.segmentannotations.accel{1,ii}.outindex;
+            end
+        end
+    end
+end
+
 function timeRangeStr = getTimeRangeStr(timeStart, timeEnd, timeBase)
     if strcmp(timeBase,'World')
         timeRangeStr = [datestr(timeStart, 'yyyy/mm/dd, HH:MM:SS') ' - ' datestr(timeEnd, 'yyyy/mm/dd, HH:MM:SS')];
@@ -7070,10 +7492,10 @@ function accHistNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveI
         hAxZ = axes('Parent',hFig,'Position',[0.54 0.05 0.44 0.42], 'Box', 'on');
         binEdgesMag = linspace(xLimMinMag,xLimMaxMag,binCountMag+1);
         binEdgesXYZ = linspace(xLimMinXYZ,xLimMaxXYZ,binCountXYZ+1);
-        histogram(C3.accelmag.data(startIndex:endIndex), binEdgesMag, 'Normalization', 'probability', 'FaceColor', 'k','EdgeColor', [1 1 1], 'FaceAlpha', 1, 'Parent', hAxMag);
-        histogram(C3.accel.data(startIndex:endIndex,1), binEdgesXYZ, 'Normalization', 'probability', 'FaceColor', 'r', 'EdgeColor', [1 1 1], 'FaceAlpha', 1, 'Parent', hAxX);
-        histogram(C3.accel.data(startIndex:endIndex,2), binEdgesXYZ, 'Normalization', 'probability', 'FaceColor', [0 0.75 0], 'EdgeColor', [1 1 1], 'FaceAlpha', 1, 'Parent', hAxY);
-        histogram(C3.accel.data(startIndex:endIndex,3), binEdgesXYZ, 'Normalization', 'probability', 'FaceColor', 'b', 'EdgeColor', [1 1 1], 'FaceAlpha', 1, 'Parent', hAxZ);
+        histAccMag = histogram(C3.accelmag.data(startIndex:endIndex), binEdgesMag, 'Normalization', 'probability', 'FaceColor', 'k','EdgeColor', [1 1 1], 'FaceAlpha', 1, 'Parent', hAxMag);
+        histAccX = histogram(C3.accel.data(startIndex:endIndex,1), binEdgesXYZ, 'Normalization', 'probability', 'FaceColor', 'r', 'EdgeColor', [1 1 1], 'FaceAlpha', 1, 'Parent', hAxX);
+        histAccY = histogram(C3.accel.data(startIndex:endIndex,2), binEdgesXYZ, 'Normalization', 'probability', 'FaceColor', [0 0.75 0], 'EdgeColor', [1 1 1], 'FaceAlpha', 1, 'Parent', hAxY);
+        histAccZ = histogram(C3.accel.data(startIndex:endIndex,3), binEdgesXYZ, 'Normalization', 'probability', 'FaceColor', 'b', 'EdgeColor', [1 1 1], 'FaceAlpha', 1, 'Parent', hAxZ);
         hAxMag.XLim = [xLimMinMag xLimMaxMag];
         hAxX.XLim = [xLimMinXYZ xLimMaxXYZ];
         hAxY.XLim = [xLimMinXYZ xLimMaxXYZ];
@@ -7118,8 +7540,18 @@ function accHistNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveI
         title(hAxY,sprintf('Acceleration Y  %s  %s',nameStr, rangeStr),'FontSize',12,'FontWeight','bold');
         title(hAxZ,sprintf('Acceleration Z  %s  %s',nameStr, rangeStr),'FontSize',12,'FontWeight','bold');
         if saveImages
-            imgTitleStr = ['Accel mag hist ' getRangeStrForFileName(xAxisTimeStamps,timeBase,startIndex,endIndex,'Accel')];
+            imgTitleStr = ['Accel hist ' getRangeStrForFileName(xAxisTimeStamps,timeBase,startIndex,endIndex,'Accel')];
             print(hFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng','-r90');
+        end
+        saveHistDataTxt = true;
+        if saveHistDataTxt
+            txtTitleStr = ['Accel Mag hist ' getRangeStrForFileName(xAxisTimeStamps,timeBase,startIndex,endIndex,'Accel')];
+            fid = fopen([imgFiles_path filesep txtTitleStr '.txt'],'w');
+            fprintf(fid,'%s\n%s\n',full_path,txtTitleStr);
+            fprintf(fid,'Bin limits: [%f %f], Num bins: %d, Bin width: %f, Normalization: %s\n',histAccMag.BinLimits(1),histAccMag.BinLimits(2),histAccMag.NumBins,histAccMag.BinWidth,histAccMag.Normalization);
+            fprintf(fid,'Bin values:\n');
+            fprintf(fid,'%f\n',(histAccMag.Values)');
+            fclose(fid);
         end
     end
 end
@@ -7470,4 +7902,302 @@ function classCountInfoReset(hClassCountN,hClassCountS,hClassCountV,hClassCountF
     set(hClassCountF,'String','');
     set(hClassCountU,'String','');
     set(hClassCountArtefact,'String','');
+end
+
+function choiceECGann = dialogAnnECG()
+    choiceECGann = 'No Annotation Selected';
+    
+    % get screen size
+    screenSize = get(0,'screensize');
+    screenWidth = screenSize(3);
+    screenHeight = screenSize(4);
+
+    dHeight = 320;
+    hDialog = dialog('Position',[screenWidth*0.3 max(screenHeight-400,20) 580 dHeight],...
+        'Name','Select Annotation');
+    
+    uicontrol('Parent',hDialog,...
+           'Style','text',...
+           'FontSize',8,...
+           'HorizontalAlignment','left',...
+           'Position',[10 dHeight-30 200 20],...
+           'String','Tachycardia');
+    
+    idx = 1; ECGann{idx} = 'Atrial fibrillation';
+    uicontrol('Parent',hDialog,...
+           'Position',[10 dHeight-60 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'Atrial flutter';
+    uicontrol('Parent',hDialog,...
+           'Position',[200 dHeight-60 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'Supraventricular tachycardia';
+    uicontrol('Parent',hDialog,...
+           'Position',[390 dHeight-60 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'Monomorphic VT';
+    uicontrol('Parent',hDialog,...
+           'Position',[10 dHeight-100 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'Polymorphic VT';
+    uicontrol('Parent',hDialog,...
+           'Position',[200 dHeight-100 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'Wide-complex tachycardia of uncertain type';
+    uicontrol('Parent',hDialog,...
+           'Position',[390 dHeight-100 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});      
+       
+    uicontrol('Parent',hDialog,...
+           'Style','text',...
+           'FontSize',8,...
+           'HorizontalAlignment','left',...
+           'Position',[10 dHeight-150 200 20],...
+           'String','Bradycardia');
+       
+    idx = idx+1; ECGann{idx} = 'Sinus Bradycardia';
+    uicontrol('Parent',hDialog,...
+           'Position',[10 dHeight-180 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'First-degree AV block';
+    uicontrol('Parent',hDialog,...
+           'Position',[200 dHeight-180 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+
+    idx = idx+1; ECGann{idx} = 'Second-degree AV block';
+    uicontrol('Parent',hDialog,...
+           'Position',[390 dHeight-180 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'Wenckenbach/Mobitz I';
+    uicontrol('Parent',hDialog,...
+           'Position',[10 dHeight-220 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'Mobitz II';
+    uicontrol('Parent',hDialog,...
+           'Position',[200 dHeight-220 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+
+    idx = idx+1; ECGann{idx} = '3rd-degree AV block complete block';
+    uicontrol('Parent',hDialog,...
+           'Position',[390 dHeight-220 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+       
+    uicontrol('Parent',hDialog,...
+           'Style','text',...
+           'FontSize',8,...
+           'HorizontalAlignment','left',...
+           'Position',[10 dHeight-270 200 20],...
+           'String','Other');
+       
+    idx = idx+1; ECGann{idx} = 'Noise';
+    uicontrol('Parent',hDialog,...
+           'Position',[10 dHeight-300 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+       
+    hTxtEdit = uicontrol('Parent',hDialog,...
+           'Style','edit',...
+           'FontSize',10,...
+           'HorizontalAlignment','left',...
+           'String','Custom annotation',...
+           'Position',[255 dHeight-300 125 30],...
+           'Callback',@txtEditCallback);
+       
+    uicontrol('Parent',hDialog,...
+           'Position',[200 dHeight-300 50 30],...
+           'FontSize',10,...
+           'String','Use:',...
+           'Callback',{@customBtnCallback,hTxtEdit,hDialog});
+
+    idx = idx+1; ECGann{idx} = 'Normal Rhythm';
+    uicontrol('Parent',hDialog,...
+           'Position',[390 dHeight-300 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,ECGann{idx},hDialog});
+       
+    % Wait for hDialog to close before running to completion
+    uiwait(hDialog);
+   
+    function btnCallback(~,~,annStr,hDialog)
+      choiceECGann = annStr;
+      delete(hDialog);
+    end
+
+    function customBtnCallback(~,~,hTxtEdit,hDialog)
+      choiceECGann = hTxtEdit.String;
+      delete(hDialog);
+    end
+
+    function txtEditCallback(hTxtEdit,~)
+      choiceECGann = hTxtEdit.String;
+      delete(hDialog);
+    end
+end
+
+function choiceClassAnn = dialogAnnClass()
+    choiceClassAnn = '';
+    
+    % get screen size
+    screenSize = get(0,'screensize');
+    screenWidth = screenSize(3);
+    screenHeight = screenSize(4);
+
+    dHeight = 200;
+    hDialog = dialog('Position',[screenWidth*0.3 max(screenHeight-400,20) 580 dHeight],...
+        'Name','Select Beat Class Annotation');
+    
+    uicontrol('Parent',hDialog,...
+           'Style','text',...
+           'FontSize',8,...
+           'HorizontalAlignment','left',...
+           'Position',[10 dHeight-30 400 20],...
+           'String','Choose one common annotation for selected beats');
+    
+    idx = 1; ECGann{idx} = 'N (Normal beats)';
+    uicontrol('Parent',hDialog,...
+           'Position',[10 dHeight-60 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,'N',hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'S (Supraventricular)';
+    uicontrol('Parent',hDialog,...
+           'Position',[200 dHeight-60 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,'S',hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'V (Ventricular premature)';
+    uicontrol('Parent',hDialog,...
+           'Position',[390 dHeight-60 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,'V',hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'F (Fusion of ventricular and normal)';
+    uicontrol('Parent',hDialog,...
+           'Position',[10 dHeight-100 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,'F',hDialog});
+       
+    idx = idx+1; ECGann{idx} = 'U (Unclassifiable)';
+    uicontrol('Parent',hDialog,...
+           'Position',[200 dHeight-100 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,'U',hDialog});
+       
+    idx = idx+1; ECGann{idx} = '| (Isolated QRS-like artifact)';
+    uicontrol('Parent',hDialog,...
+           'Position',[390 dHeight-100 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,'|',hDialog});      
+
+       uicontrol('Parent',hDialog,...
+           'Style','text',...
+           'FontSize',8,...
+           'HorizontalAlignment','left',...
+           'Position',[10 dHeight-150 400 20],...
+           'String','Or, Delete all currently selected beat annotations');
+
+    idx = idx+1; ECGann{idx} = 'Delete';
+    uicontrol('Parent',hDialog,...
+           'Position',[10 dHeight-180 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,'-',hDialog});
+       
+    % Wait for hDialog to close before running to completion
+    uiwait(hDialog);
+   
+    function btnCallback(~,~,annStr,hDialog)
+      choiceClassAnn = annStr;
+      delete(hDialog);
+    end
+end
+
+function gS = deselectEventMarkerMode(hButtonEventMarkerAddToggle,hEventMarkerDescription,gS,panelColor,editColor)
+    gS.eventMarkerMode = false;
+    hButtonEventMarkerAddToggle.Value = 0;
+    hButtonEventMarkerAddToggle.String = 'Off';
+    hButtonEventMarkerAddToggle.BackgroundColor = panelColor;
+    hEventMarkerDescription.BackgroundColor = editColor;
+end
+
+function [gS,reportIOmarkers] = deselectReportMarkerMode(hButtonECGkitMarkerAddToggle,hECGkitMarkerDescription,hButtonECGkitMarkerOut,hECGkitMarkerOutHrs,hECGkitMarkerOutMin,hECGkitMarkerOutSec,reportIOmarkers,gS,panelColor,editColor)
+    gS.ecgMarkerMode = false;
+    hButtonECGkitMarkerAddToggle.Value = 0;
+    hButtonECGkitMarkerAddToggle.String = 'Off';
+    hButtonECGkitMarkerAddToggle.BackgroundColor = panelColor;
+    hECGkitMarkerDescription.BackgroundColor = editColor;
+    hButtonECGkitMarkerOut.BackgroundColor = panelColor;
+    hECGkitMarkerOutHrs.BackgroundColor = editColor;
+    hECGkitMarkerOutMin.BackgroundColor = editColor;
+    hECGkitMarkerOutSec.BackgroundColor = editColor;
+    % make sure there's no In-point hanging, when turning off Add-markers mode
+    if gS.ecgInpointSet
+        numMarkers = size(reportIOmarkers,2);
+        reportIOmarkers(numMarkers) = [];
+        gS.ecgInpointSet = false;
+    end
+end
+
+function gS = deselectClassAnnDragSelMode(hBtnClassAnnSel,gS,panelColor)
+    hBtnClassAnnSel.Value = 0;
+    gS.classAnnDragSel = false;
+    hBtnClassAnnSel.BackgroundColor = panelColor;
+end
+
+function [gS,segAnns] = deselectSegSelClickMode(hButtonSegSelClick,segAnns,gS,panelColor)
+    hButtonSegSelClick.Value = 0;
+    hButtonSegSelClick.BackgroundColor = panelColor;
+    hButtonSegSelClick.String = 'Method: Click';
+    gS.segAnnMode = 'none';
+    % make sure there's no In-point hanging, when turning off Add-markers mode
+    if gS.segAnnECGInSet
+        segAnns.ecg(end) = [];
+        gS.segAnnECGInSet = false;
+    end
+end
+
+function gS = deselectSegSelDragMode(hButtonSegSelDrag,gS,panelColor)
+    hButtonSegSelDrag.Value = 0;
+    hButtonSegSelDrag.BackgroundColor = panelColor;
+    gS.segAnnMode = 'none';
 end

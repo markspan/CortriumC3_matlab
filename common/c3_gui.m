@@ -2331,16 +2331,48 @@ hPanelOptionalPlots = uipanel('Parent',hPanelParentOptionalPlots,...
 hSaveImagesCheckbox = uicontrol('Parent',hPanelOptionalPlots,...
     'Style','checkbox',...
     'Units','normalized',...
-    'Position',[0.05,0.95,0.9,0.04],...
+    'Position',[0.05,0.95,0.45,0.04],...
     'Value',0,...
     'String','Save images',...
+    'Enable','on',...
+    'BackgroundColor',panelColor);
+
+% Text-edit for image resolution
+hImageRes = uicontrol('Parent',hPanelOptionalPlots,...
+    'Style','edit',...
+    'Enable','on',...
+    'Units','normalized',...
+    'Position',[0.4,0.95,0.12,0.04],...
+    'String','72',...
+    'HorizontalAlignment','center',...
+    'FontSize',8,...
+    'BackgroundColor',editColor);
+
+% Text label, for image resolution
+uicontrol('Parent',hPanelOptionalPlots,...
+    'Style','text',...
+    'Units','normalized',...
+    'position',[0.52,0.945,0.15,0.04],...
+    'HorizontalAlignment','left',...
+    'String','ppi',...
+    'FontWeight','normal',...
+    'FontSize',8,...
+    'BackgroundColor',panelColor);
+
+% Checkbox, save text
+hSaveTextCheckbox = uicontrol('Parent',hPanelOptionalPlots,...
+    'Style','checkbox',...
+    'Units','normalized',...
+    'Position',[0.05,0.91,0.4,0.04],...
+    'Value',0,...
+    'String','Save text',...
     'Enable','on',...
     'BackgroundColor',panelColor);
 
 % Radio buttons group, select whether export will be of displayed range or entire length of recording
 hOptPlotRangeButtonGroup = uibuttongroup('Parent',hPanelOptionalPlots,...
     'Units','normalized',...
-    'Position',[0.05,0.86,0.9,0.08],...
+    'Position',[0.05,0.82,0.9,0.08],...
     'BackgroundColor',panelColor,...
     'Title','Range');
 
@@ -2372,7 +2404,7 @@ hPanelECGFFT = uipanel('Parent',hPanelOptionalPlots,...
     'BorderType','etchedin',... %
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
-    'Position',[0.05 0.75 0.9 0.1],...
+    'Position',[0.05 0.71 0.9 0.1],...
     'BackgroundColor',panelColor);
 
 % Button, FFT
@@ -2391,7 +2423,7 @@ hPanelAccMag = uipanel('Parent',hPanelOptionalPlots,...
     'BorderType','etchedin',... %
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
-    'Position',[0.05 0.49 0.9 0.25],...
+    'Position',[0.05 0.45 0.9 0.25],...
     'BackgroundColor',panelColor);
 
 % Text label, Bin count for Mag
@@ -5047,7 +5079,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
     function accMagFunc(~,~)
-        accHistNewWindow(C3,rangeStartIndex.Accel,rangeEndIndex.Accel,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hOptPlotRangeButtonGroup,gS,hAccMagHistBinCount,hAccMagHistXLimMin,hAccMagHistXLimMax,hAccXYZHistBinCount,hAccXYZHistXLimMin,hAccXYZHistXLimMax,full_path,jsondata);
+        accHistNewWindow(C3,rangeStartIndex.Accel,rangeEndIndex.Accel,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hImageRes,hSaveTextCheckbox,hOptPlotRangeButtonGroup,gS,hAccMagHistBinCount,hAccMagHistXLimMin,hAccMagHistXLimMax,hAccXYZHistBinCount,hAccXYZHistXLimMin,hAccXYZHistXLimMax,full_path,jsondata);
     end
 
     function flipEcgFunc(hUiCtrl, ~, ecgCh)
@@ -7447,7 +7479,7 @@ function fftEcgNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveIm
     end
 end
 
-function accHistNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hOptPlotRangeButtonGroup,gS,hAccMagHistBinCount,hAccMagHistXLimMin,hAccMagHistXLimMax,hAccXYZHistBinCount,hAccXYZHistXLimMin,hAccXYZHistXLimMax,full_path,jsondata)
+function accHistNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hImageRes,hSaveTextCheckbox,hOptPlotRangeButtonGroup,gS,hAccMagHistBinCount,hAccMagHistXLimMin,hAccMagHistXLimMax,hAccXYZHistBinCount,hAccXYZHistXLimMin,hAccXYZHistXLimMax,full_path,jsondata)
     if gS.dataLoaded
         binCountMag = getIntVal(hAccMagHistBinCount);
         xLimMinMag = getFloatVal(hAccMagHistXLimMin);
@@ -7462,16 +7494,6 @@ function accHistNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveI
         if binCountMag < 1 || binCountXYZ < 1
             warndlg('Bin size too small!');
             return;
-        end
-        if hSaveImagesCheckbox.Value == 1
-            saveImages = true;
-            [source_path,~,~] = fileparts(full_path);
-            imgFiles_path = [source_path filesep 'Images - Accel hist'];
-            if ~exist(imgFiles_path,'dir')
-                mkdir(imgFiles_path);
-            end
-        else
-            saveImages = false;
         end
         if strcmp('Full recording',get(get(hOptPlotRangeButtonGroup,'selectedobject'),'String'))
             startIndex = 1;
@@ -7502,14 +7524,14 @@ function accHistNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveI
         hAxZ.XLim = [xLimMinXYZ xLimMaxXYZ];
         % Setting the YLim just a bit lower than 0, to avoid that the bar edges
         % overlay the bottom x-axis.
-        yMinMagLim = -(hAxMag.YLim(2) / 300.0);
-        hAxMag.YLim = [yMinMagLim hAxMag.YLim(2)];
-        yMinXLim = -(hAxX.YLim(2) / 300.0);
-        hAxX.YLim = [yMinXLim hAxX.YLim(2)];
-        yMinYLim = -(hAxY.YLim(2) / 300.0);
-        hAxY.YLim = [yMinYLim hAxY.YLim(2)];
-        yMinZLim = -(hAxZ.YLim(2) / 300.0);
-        hAxZ.YLim = [yMinZLim hAxZ.YLim(2)];
+%         yMinMagLim = -(hAxMag.YLim(2) / 300.0);
+        hAxMag.YLim = [-0.003 1]; % [yMinMagLim hAxMag.YLim(2)];
+%         yMinXLim = -(hAxX.YLim(2) / 300.0);
+        hAxX.YLim = [-0.003 1];
+%         yMinYLim = -(hAxY.YLim(2) / 300.0);
+        hAxY.YLim = [-0.003 1];
+%         yMinZLim = -(hAxZ.YLim(2) / 300.0);
+        hAxZ.YLim = [-0.003 1];
         grid(hAxMag,'on');
         grid(hAxX,'on');
         grid(hAxY,'on');
@@ -7539,18 +7561,39 @@ function accHistNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveI
         title(hAxX,sprintf('Acceleration X  %s  %s',nameStr, rangeStr),'FontSize',12,'FontWeight','bold');
         title(hAxY,sprintf('Acceleration Y  %s  %s',nameStr, rangeStr),'FontSize',12,'FontWeight','bold');
         title(hAxZ,sprintf('Acceleration Z  %s  %s',nameStr, rangeStr),'FontSize',12,'FontWeight','bold');
-        if saveImages
-            imgTitleStr = ['Accel hist ' getRangeStrForFileName(xAxisTimeStamps,timeBase,startIndex,endIndex,'Accel')];
-            print(hFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng','-r90');
+        if hSaveImagesCheckbox.Value || hSaveTextCheckbox.Value
+            [source_path,~,~] = fileparts(full_path);
+            imgFiles_path = [source_path filesep 'Images - Accel hist'];
+            if ~exist(imgFiles_path,'dir')
+                mkdir(imgFiles_path);
+            end
         end
-        saveHistDataTxt = true;
-        if saveHistDataTxt
+        if hSaveImagesCheckbox.Value
+            imgTitleStr = ['Accel hist ' getRangeStrForFileName(xAxisTimeStamps,timeBase,startIndex,endIndex,'Accel')];
+            imgRes = getGT0IntVal(hImageRes);
+            if imgRes > 29 && imgRes < 301
+                resStr = sprintf('-r%d', imgRes);
+                print(hFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng', resStr);
+            else
+                warndlg('Image resolution should be between 30 and 300 ppi!');
+            end
+        end
+        if hSaveTextCheckbox.Value
+            % Mag
             txtTitleStr = ['Accel Mag hist ' getRangeStrForFileName(xAxisTimeStamps,timeBase,startIndex,endIndex,'Accel')];
             fid = fopen([imgFiles_path filesep txtTitleStr '.txt'],'w');
             fprintf(fid,'%s\n%s\n',full_path,txtTitleStr);
             fprintf(fid,'Bin limits: [%f %f], Num bins: %d, Bin width: %f, Normalization: %s\n',histAccMag.BinLimits(1),histAccMag.BinLimits(2),histAccMag.NumBins,histAccMag.BinWidth,histAccMag.Normalization);
-            fprintf(fid,'Bin values:\n');
+            fprintf(fid,'Bin values, Magnitude:\n');
             fprintf(fid,'%f\n',(histAccMag.Values)');
+            fclose(fid);
+            % XYZ
+            txtTitleStr = ['Accel XYZ hist ' getRangeStrForFileName(xAxisTimeStamps,timeBase,startIndex,endIndex,'Accel')];
+            fid = fopen([imgFiles_path filesep txtTitleStr '.txt'],'w');
+            fprintf(fid,'%s\n%s\n',full_path,txtTitleStr);
+            fprintf(fid,'Bin limits: [%f %f], Num bins: %d, Bin width: %f, Normalization: %s\n',histAccX.BinLimits(1),histAccX.BinLimits(2),histAccX.NumBins,histAccX.BinWidth,histAccX.Normalization);
+            fprintf(fid,'Bin values, X Y Z:\n');
+            fprintf(fid,'%f %f %f\n',[(histAccX.Values)', (histAccY.Values)', (histAccZ.Values)']');
             fclose(fid);
         end
     end

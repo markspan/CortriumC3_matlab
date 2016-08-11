@@ -13,6 +13,7 @@ classdef cortrium_c3 < handle
         serialNumber
         leadoff
         missingSerials
+        eventCounter
     end
     properties (Access = private)
         data_dir

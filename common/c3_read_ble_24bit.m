@@ -19,7 +19,7 @@
 % The remaining 3 parts are optional, but if present, each part contains
 % an uint16 serial, and 6 samples of 24bit ECG data.
 
-function [serialNumber, conf, serial_ADS, leadoff, acc, temp, resp, ecg, ecg_serials] = c3_read_ble_24bit(ble_fullpath)
+function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp, ecg, ecg_serials] = c3_read_ble_24bit(ble_fullpath)
 
     debug = false;
 
@@ -73,8 +73,10 @@ function [serialNumber, conf, serial_ADS, leadoff, acc, temp, resp, ecg, ecg_ser
     acc_z = fread(fid, numBatches, 'int16', batchSize-2);
     fseek(fid, 10, 'bof'); % rewind
     temp_amb_obj = fread(fid, numBatches, 'uint16', batchSize-2);
-    fseek(fid, 12, 'bof'); % rewind
-    serial_ADS = fread(fid, numBatches, '*uint16', batchSize-2);
+    fseek(fid, 12, 'bof');
+    serial_ADS = fread(fid, numBatches, '*uint8', batchSize-1);
+    fseek(fid, 13, 'bof');
+    eventCounter = fread(fid, numBatches, '*uint8', batchSize-1);
     fseek(fid, 14, 'bof'); % rewind
     bat_level_and_status = fread(fid, numBatches, '*uint8', batchSize-1);
     if respAvailable

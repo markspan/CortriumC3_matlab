@@ -110,7 +110,7 @@ ibiSegmentSampleNums = [];
 %% GUI
 
 % (MATLAB R2014b+) turn off graphics smoothing on graphics root object
-set(groot,'DefaultFigureGraphicsSmoothing','on')
+set(groot,'DefaultFigureGraphicsSmoothing','off')
 
 % Create GUI window, visibility is turned off while the GUI elements are added
 hFig = figure('Name','Cortrium C3 sensor data',...

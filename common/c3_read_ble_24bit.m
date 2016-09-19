@@ -210,7 +210,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
     end
     
     % Scaling temp to Celsius
-    temp_amb_obj = (temp_amb_obj * 0.02) - 273.15;    
+    temp_amb_obj(temp_amb_obj ~= 0) = (temp_amb_obj(temp_amb_obj ~= 0) * 0.02) - 273.15;
     % Splitting temp into temp_ambient and tenp_object.
     % temp_ambient is stored in batches where mod(serialNumber,2) == 0.
     batchesBeforeFirstValidSerial = (posForValidConf - 19) / batchSize;

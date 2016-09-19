@@ -5075,7 +5075,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
     function fftFunc(~,~)
-        fftEcgNewWindow(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hOptPlotRangeButtonGroup,gS,full_path);
+        fftEcgNewWindow(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hImageRes,hOptPlotRangeButtonGroup,gS,full_path);
     end
 
     function accMagFunc(~,~)
@@ -5227,6 +5227,10 @@ end
 function plotEventMarkers(startIdx,endIdx,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS)
     cla(hAxesEventMarkers);
     if hEventMarkersCheckbox.Value == 1 && ~isempty(eventMarkers)
+        %NOTES:
+        % eventMarkers(hEventListBox.Value).serial
+        % eventMarkers([eventMarkers.serial] >= startIdx & [eventMarkers.serial] <= endIdx).serial
+        % END NOTES
         numMarkers = size(eventMarkers,2);
         selectedMakers = hEventListBox.Value;
         nonSelectedMarkers = 1:numMarkers;
@@ -7018,11 +7022,22 @@ function kubiosTxt_fullpath = exportECGtoKubios(C3,indexStartECG,indexEndECG,xAx
             fprintf(fid, '%s\t', chHeaderStr{1,1:end-1});
             fprintf(fid, '%s\r\n', chHeaderStr{1,end});
         end
-        dlmwrite(kubiosTxt_fullpath, C3.ecg.data(idxMin:idxMax,chNum)/unitsPerMv,'precision','%.3f','delimiter','\t','newline','pc','-append');
+        % close file and open in append mode
+        fclose(fid);
+        fid = fopen(kubiosTxt_fullpath,'a');
+        % write data
+        if length(chNum) == 3
+            fprintf(fid, '%.3f\t%.3f\t%.3f\r\n', (C3.ecg.data(idxMin:idxMax,chNum)/unitsPerMv)');
+        elseif length(chNum) == 2
+            fprintf(fid, '%.3f\t%.3f\r\n', (C3.ecg.data(idxMin:idxMax,chNum)/unitsPerMv)');
+        else
+            fprintf(fid, '%.3f\r\n', (C3.ecg.data(idxMin:idxMax,chNum)/unitsPerMv)');
+        end
         fclose(fid);
     else
         kubiosTxt_fullpath = [];
     end
+    msgbox({'Export to Kubios ASCII file completed!' kubiosTxt_fullpath});
 end
 
 function physiobank_fullpath = exportECGtoPhysiobankFile(C3,indexStartECG,indexEndECG,chNum,export_sub_path,filename_wo_extension,contextStr)
@@ -7434,7 +7449,7 @@ function [winXpos, winYpos, winWidth, winHeight] = getPlotWinPos()
     winHeight = round(screenHeight*0.5);
 end
 
-function fftEcgNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hOptPlotRangeButtonGroup,gS,full_path)
+function fftEcgNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveImagesCheckbox,hImageRes,hOptPlotRangeButtonGroup,gS,full_path)
     if gS.dataLoaded
         if hSaveImagesCheckbox.Value == 1
             saveImages = true;
@@ -7473,7 +7488,13 @@ function fftEcgNewWindow(C3,startIndex,endIndex,xAxisTimeStamps,timeBase,hSaveIm
 %             hAx.XTick = hAx.XLim(1):10:hAx.XLim(2);
             if saveImages
                 imgTitleStr = ['FFT ECG' num2str(ii) ' ' getRangeStrForFileName(xAxisTimeStamps,timeBase,startIndex,endIndex,'ECG')];
-                print(hFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng','-r90');
+                imgRes = getGT0IntVal(hImageRes);
+                if imgRes > 29 && imgRes < 301
+                    resStr = sprintf('-r%d', imgRes);
+                    print(hFig,[imgFiles_path filesep imgTitleStr '.png'],'-dpng', resStr);
+                else
+                    warndlg('Image resolution should be between 30 and 300 ppi!');
+                end
             end
         end
     end
@@ -7897,9 +7918,6 @@ function [jsondata, Cancelled] = createNewJSON(C3,full_path,fileFormat)
     if ~Cancelled
         if strcmp(Answer.patientid,'')
             Answer.patientid = 'Not specified';
-        end
-        if strcmp(Answer.patientname,'')
-            Answer.patientname = 'Not specified';
         end
         if strcmp(Answer.patientname,'')
             Answer.patientname = 'Not specified';

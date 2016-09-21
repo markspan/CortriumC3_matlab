@@ -1,5 +1,5 @@
 function c3_gui()
-% WORK IN PROGRESS! Needs cleanup from old code, etc.
+% WORK IN PROGRESS! Needs cleanup from old code, etc. %testtest
 
 %% Initialize variables
 hTic_buildingGUI = tic;
@@ -4207,6 +4207,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     eventMarkers(entriesForDeletion(deleteCount+1-ii)) = [];
                 end
             end
+            % update the index field
+            for ii=1:length(eventMarkers)
+                eventMarkers(ii).index = ii;
+            end
             updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,entriesForDeletion(1)-1);
             plotEventMarkers(rangeStartIndex.Accel,rangeEndIndex.Accel,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS);
             hButtonEventMarkerSave.BackgroundColor = editColorGreen;
@@ -5227,14 +5231,12 @@ end
 function plotEventMarkers(startIdx,endIdx,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS)
     cla(hAxesEventMarkers);
     if hEventMarkersCheckbox.Value == 1 && ~isempty(eventMarkers)
-        %NOTES:
-        % eventMarkers(hEventListBox.Value).serial
-        % eventMarkers([eventMarkers.serial] >= startIdx & [eventMarkers.serial] <= endIdx).serial
-        % END NOTES
-        numMarkers = size(eventMarkers,2);
-        selectedMakers = hEventListBox.Value;
-        nonSelectedMarkers = 1:numMarkers;
-        nonSelectedMarkers(selectedMakers) = [];
+        % indices of markers within currently visible range
+        markerIndices = [eventMarkers([eventMarkers.serial] >= startIdx & [eventMarkers.serial] <= endIdx).index];
+        % indices of selected markers within currently visible range
+        selectedMakers = intersect(hEventListBox.Value,markerIndices);
+        % indices of non-selected markers within currently visible range
+        nonSelectedMarkers = setdiff(markerIndices,selectedMakers);
         hAxesEventMarkers.XLim = [startIdx endIdx];
         for ii=1:length(selectedMakers)
             plot(hAxesEventMarkers, [eventMarkers(selectedMakers(ii)).serial eventMarkers(selectedMakers(ii)).serial], [0 1], 'Color', min(gS.colors.col{7}*1.3,1), 'LineWidth', 1.5, 'LineStyle', ':');
@@ -7188,6 +7190,7 @@ function [gS,eventMarkers] = addEventMarker(timePoint,xAxisTimeStamps,timeBase,g
     else
         numMarkers = size(eventMarkers,2);
     end
+    eventMarkers(numMarkers+1).index = numMarkers+1;
     eventMarkers(numMarkers+1).description = hEventMarkerDescription.String;
     eventMarkers(numMarkers+1).serial = accelIndex;
     eventMarkers(numMarkers+1).eventid = char(java.util.UUID.randomUUID);
@@ -7381,6 +7384,7 @@ end
 function eventMarkers = initializEventMarkers(jsondata,eventMarkers)
     if isfield(jsondata,'events') && ~isempty(jsondata.events)
         for ii=1:size(jsondata.events,2)
+            eventMarkers(ii).index = ii;
             eventMarkers(ii).serial = jsondata.events{1,ii}.serial;
             eventMarkers(ii).description = jsondata.events{1,ii}.eventname;
             eventMarkers(ii).eventid = jsondata.events{1,ii}.eventid;

@@ -21,12 +21,43 @@
 
 function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp, ecg, ecg_serials] = c3_read_ble_24bit(ble_fullpath)
 
-    debug = false;
+    debug = false; verbose = true;
 
-    acc = []; temp = []; resp = []; ecg = []; ecg1 = []; ecg2 = []; ecg3 = []; ecg1_serial = []; ecg2_serial = []; ecg3_serial = [];
+    serialNumber = []; conf = []; serial_ADS = []; eventCounter = []; leadoff = [];
+    acc = []; temp = []; resp = []; ecg = []; ecg1 = []; ecg2 = []; ecg3 = [];
+    ecg_serials = []; ecg1_serial = []; ecg2_serial = []; ecg3_serial = [];
 
     fid = fopen(ble_fullpath,'r');
+    
+    fseek(fid, 0, 'bof');
+    ble_description_chars = fread(fid, 6, '*char')';
+    idx7Char = fread(fid, 1, '*char')';
+    if strcmp('BLE-C3',ble_description_chars) && idx7Char == char(0)
+        hasHeader = true;
+    else
+        hasHeader = false;
+    end
+    if hasHeader
+        fileFormatVersion = fread(fid, 2, '*char')';
+        fseek(fid, 10, 'bof');
+        deviceID = fread(fid, 15, '*char')';
+        fseek(fid, 26, 'bof');
+        fwVersion = fread(fid, 12, '*char')';
+        fseek(fid, 39, 'bof');
+        hwVersion = fread(fid, 7, '*char')';
+        fseek(fid, 47, 'bof');
+        companySpecific = fread(fid, 1, '*uint8')';
+        miscOffset = 48;
+    else
+        miscOffset = 0;
+    end
 
+    if companySpecific
+        errordlg('This BLE-file is encrypted! Unable to read.','File Error','modal');
+        return;
+    end
+    
+    fseek(fid, 0 + miscOffset, 'bof');
     % FIND THE FIRST VALID SERIAL AND CONF, i.e. serialNumber is NOT zero
     while ~feof(fid)
         tempSerialNumber = fread(fid, 1, '*uint32');
@@ -57,54 +88,71 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
     ecg3Available = (conf_bin(end-3) == '1');
     % dec2hex for debugging purposes
     conf_hex = dec2hex(valid_conf);
+    
+    if verbose
+        % Display info about recording start time and duration, output to console
+        [~,ble_name,ble_ext] = fileparts(ble_fullpath);
+        fileInfo = dir(ble_fullpath);
+        fprintf('\n=======================================================\n');
+        fprintf('File: %s\nSize: %d bytes, (%f megabytes)\n', [ble_name,ble_ext], fileInfo.bytes, fileInfo.bytes/1024/1024);
+        fprintf('valid conf assumed at file pos: %d bytes\n',posForValidConf);
+        fprintf('Conf DEC: %d     Conf BIN: %s    Conf HEX: %s\n',valid_conf,conf_bin,conf_hex);
+        if hasHeader
+            fprintf('Header: ');
+            fprintf('%s, ',ble_description_chars);
+            fprintf('file ver: %s, ',fileFormatVersion);
+            fprintf('deviceID: %s, ',deviceID);
+            fprintf('FW ver: %s, ',deblank(fwVersion));
+            fprintf('HW ver: %s, ',hwVersion);
+            fprintf('comp. specific: %d\n',companySpecific);
+        end
+    end
 
-    % set the file pointer to the start of the file
-    frewind(fid);
     numBatches = Inf; % 'Inf' = read all batches
     batchSize = 20 + ((ecg1Available + ecg2Available + ecg3Available) * 20); % how many bytes a batch contains, depends on how many sensor signals were included
 
     % PART 1, MISC, MANDATORY PAYLOAD
+    % set the file pointer to the start of the first MISC part
+    filePos = 0 + miscOffset;
+    fseek(fid, filePos, 'bof');
     serialNumber = fread(fid, numBatches, '*uint32', batchSize-4);
-    fseek(fid, 4, 'bof'); % rewind
+    fseek(fid, filePos+4, 'bof'); % rewind
     acc_x = fread(fid, numBatches, 'int16', batchSize-2);
-    fseek(fid, 6, 'bof'); % rewind
+    fseek(fid, filePos+6, 'bof'); % rewind
     acc_y = fread(fid, numBatches, 'int16', batchSize-2);
-    fseek(fid, 8, 'bof'); % rewind
+    fseek(fid, filePos+8, 'bof'); % rewind
     acc_z = fread(fid, numBatches, 'int16', batchSize-2);
-    fseek(fid, 10, 'bof'); % rewind
+    fseek(fid, filePos+10, 'bof'); % rewind
     temp_amb_obj = fread(fid, numBatches, 'uint16', batchSize-2);
-    fseek(fid, 12, 'bof');
+    fseek(fid, filePos+12, 'bof');
     serial_ADS = fread(fid, numBatches, '*uint8', batchSize-1);
-    fseek(fid, 13, 'bof');
+    fseek(fid, filePos+13, 'bof');
     eventCounter = fread(fid, numBatches, '*uint8', batchSize-1);
-    fseek(fid, 14, 'bof'); % rewind
+    fseek(fid, filePos+14, 'bof'); % rewind
     bat_level_and_status = fread(fid, numBatches, '*uint8', batchSize-1);
     if respAvailable
-        fseek(fid, 15, 'bof'); % rewind
+        fseek(fid, filePos+15, 'bof'); % rewind
         resp = fread(fid, numBatches, 'bit24', (batchSize*8)-24); % when using bitn, 'skip' argument must be specified in bits, not bytes
     else
         resp = [];
     end
-    fseek(fid, 18, 'bof'); % rewind
+    fseek(fid, filePos+18, 'bof'); % rewind
     leadoff = fread(fid, numBatches, '*uint8', batchSize-1);  
-    fseek(fid, 19, 'bof'); % rewind
+    fseek(fid, filePos+19, 'bof'); % rewind
     conf = fread(fid, numBatches, '*uint8', batchSize-1);
     
-    % Display info about recording start time and duration, output to console
-    [~,ble_filename_wo_extension,ble_extension] = fileparts(ble_fullpath);
-    % WARNING: USING THE FILENAME AS AN 8-DIGIT HEX TIMESTAMP - RENAMED FILES BREAKS THIS
-%     recordingStartTime = datetime(hex2dec(ble_filename_wo_extension), 'ConvertFrom', 'posixtime', 'TimeZone', 'local');%'Europe/Zurich'
-    LengthOfRecondingInSeconds = length(serialNumber) * 0.024;
-    [h,m,s] = hms(seconds(LengthOfRecondingInSeconds));
-    fprintf('--------------------\n');
-%     fprintf('File name: %s    Start: %s    Duration: %02d:%02d:%02.0f (hours:mins:secs)\n',[ble_filename_wo_extension,ble_extension], datestr(recordingStartTime), h, m, s);
-    fprintf('File name: %s    Duration: %02d:%02d:%02.0f (hours:mins:secs)\n',[ble_filename_wo_extension,ble_extension], h, m, s);
-    fprintf('valid conf assumed at file pos: %d bytes\n',posForValidConf);
-    fprintf('Conf DEC: %d     Conf BIN: %s    Conf HEX: %s\n',valid_conf,conf_bin,conf_hex);
+    if verbose
+        % WARNING: USING THE FILENAME AS AN 8-DIGIT HEX TIMESTAMP - RENAMED FILES BREAKS THIS
+    %     recordingStartTime = datetime(hex2dec(ble_name), 'ConvertFrom', 'posixtime', 'TimeZone', 'local');%'Europe/Zurich'
+        LengthOfRecondingInSeconds = length(serialNumber) * 0.024;
+        [h,m,s] = hms(seconds(LengthOfRecondingInSeconds));
+        fprintf('Duration: %02d:%02d:%02.0f (hours:mins:secs)\n',h, m, s);
+        fprintf('=======================================================\n');
+    end
    
     % PART 2, ECG_1
     if ecg1Available
-        filePos = (ecg1Available) * 20;
+        filePos = miscOffset + (ecg1Available * 20);
         fseek(fid, filePos, 'bof');
         ecg1_serial = fread(fid, numBatches, 'uint16', batchSize-2);
         fseek(fid, filePos+2, 'bof');
@@ -125,7 +173,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
 
     % PART 3, ECG_2
     if ecg2Available
-        filePos = (ecg1Available + ecg2Available) * 20;
+        filePos = miscOffset + ((ecg1Available + ecg2Available) * 20);
         fseek(fid, filePos, 'bof');
         ecg2_serial = fread(fid, numBatches, 'uint16', batchSize-2);
         fseek(fid, filePos+2, 'bof');
@@ -146,7 +194,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
 
     % PART 4, ECG_3
     if ecg3Available
-        filePos = (ecg1Available + ecg2Available + ecg3Available) * 20;
+        filePos = miscOffset + ((ecg1Available + ecg2Available + ecg3Available) * 20);
         fseek(fid, filePos, 'bof');
         ecg3_serial = fread(fid, numBatches, 'uint16', batchSize-2);
         fseek(fid, filePos+2, 'bof');

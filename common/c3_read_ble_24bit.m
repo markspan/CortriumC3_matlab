@@ -48,13 +48,12 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
         fseek(fid, 47, 'bof');
         companySpecific = fread(fid, 1, '*uint8')';
         miscOffset = 48;
+        if companySpecific
+            errordlg('This BLE-file is encrypted! Unable to read.','File Error','modal');
+            return;
+        end
     else
         miscOffset = 0;
-    end
-
-    if companySpecific
-        errordlg('This BLE-file is encrypted! Unable to read.','File Error','modal');
-        return;
     end
     
     fseek(fid, 0 + miscOffset, 'bof');

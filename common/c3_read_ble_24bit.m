@@ -20,7 +20,7 @@
 % an uint16 serial, and 6 samples of 24bit ECG data.
 
 function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp, ecg, ecg_serials] = c3_read_ble_24bit(ble_fullpath)
-
+    hTic = tic;
     debug = false; verbose = true;
 
     serialNumber = []; conf = []; serial_ADS = []; eventCounter = []; leadoff = [];
@@ -102,7 +102,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
             fprintf('file ver: %s, ',fileFormatVersion);
             fprintf('deviceID: %s, ',deviceID);
             fprintf('FW ver: %s, ',deblank(fwVersion));
-            fprintf('HW ver: %s, ',hwVersion);
+            fprintf('HW ver: %s, ',deblank(hwVersion));
             fprintf('comp. specific: %d\n',companySpecific);
         end
     end
@@ -284,6 +284,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
     temp = [temp_ambient, temp_object];
     ecg = [ecg1, ecg2, ecg3];
     ecg_serials = [ecg1_serial, ecg2_serial, ecg3_serial];
+    fprintf('c3_read_ble_24bit: %f seconds\n',toc(hTic));
 end
 
 function idx = coloncat(start, stop)

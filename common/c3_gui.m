@@ -3228,6 +3228,8 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             reportIOmarkers = [];
             eventMarkers = [];
             segAnns = [];
+            hEventListBox.Value = [];
+            hECGkitListBox.Value = [];
             if hParentPanels(3).Visible
                 updateEcgkitListbox(hECGkitListBox,reportIOmarkers,xAxisTimeStamps,timeBase,0);
             end
@@ -3300,10 +3302,20 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     jsondata = loadjson(json_fullpath);
                 end
         end
-        eventMarkers = initializEventMarkers(jsondata,eventMarkers);
-        reportIOmarkers = initializeReportIOmarkers(jsondata,reportIOmarkers);
-        segAnns = initializeSegmentAnnotations(jsondata,segAnns);
-        
+        % Set samplingRateFactor. The base frequency is assumed to be that of the Accelerometer signal.
+        switch fileFormat
+            case 'BLE 24bit'
+                sampleRateFactor.ECG = 6;
+                sampleRateFactor.Resp = 1;
+                sampleRateFactor.Accel = 1;
+                sampleRateFactor.Temp = 0.5;
+            otherwise
+                sampleRateFactor.ECG = 10;
+                sampleRateFactor.Resp = 10;
+                sampleRateFactor.Accel = 1;
+                sampleRateFactor.Temp = 1;
+        end
+        % Now load BLE or a folder of BIN's
         dataLoaded = false;
         % Create a new C3 object
         C3 = cortrium_c3(pathName);
@@ -3339,8 +3351,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 end
                 C3.date_end = addtodate(C3.date_start, C3.ecg.samplenum*1000/C3.ecg.fs, 'millisecond');
                 C3.missingSerials = find(C3.serialNumber == 0);
+                % initialize event markers for events found in the BLE-file (only 24bit version)
+                eventMarkers = initializeEventMarkersFromBLE(C3,eventMarkers,sampleRateFactor);
                 dataLoaded = true;
-                fprintf('Read BLE 24bit file: %f seconds\n',toc(hTic_readFile));
+                fprintf('GUI, read BLE 24bit file and initialize event markers: %f seconds\n',toc(hTic_readFile));
             % if selected file format is BLE 16bit
             case 'BLE 16bit'
                 hTic_readFile = tic;
@@ -3392,22 +3406,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     warndlg('No .bin files in this directory!');
                     return;
                 end
-        end
-        
-        % Set samplingRateFactor. The base frequency is assumed to be that of the Accelerometer signal.
-        switch fileFormat
-            case 'BLE 24bit'
-                sampleRateFactor.ECG = 6;
-                sampleRateFactor.Resp = 1;
-                sampleRateFactor.Accel = 1;
-                sampleRateFactor.Temp = 0.5;
-            otherwise
-                sampleRateFactor.ECG = 10;
-                sampleRateFactor.Resp = 10;
-                sampleRateFactor.Accel = 1;
-                sampleRateFactor.Temp = 1;
-        end
-        
+        end        
         % Warn about sample count mismatch (which often occur in .bin files from python script used to convert BLE's)
         switch fileFormat
             % if selected file format is BLE 24bit
@@ -3477,7 +3476,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         %----- FILTERING -----%        
         % Filter the data (or leave raw) depending on the selected filter checkboxes
         initializeFiltering(C3, fileFormat, hPopupEcgHighPass, hPopupEcgLowPass, hRespHighpassCheckbox, hRespLowpassCheckbox, hAccelJitterCheckbox, hAccelMedianCheckbox, hTempJitterCheckbox, hEcgNanMissPackCheckbox, hEcgNanErrCodesCheckbox, hEcgNanAccMagCheckbox, hEcgNanMinAccMag, hEcgNanMaxAccMag, hEcgNanAbsEcgCheckbox, hEcgNanAbsEcg, hEcgNanAccMagWinSize, hEcgAbsValWinSize);
-        
+        % initialise event markers, report markers, ECG annotations, from JSON
+        eventMarkers = initializeEventMarkersFromJson(jsondata,eventMarkers);
+        reportIOmarkers = initializeReportIOmarkers(jsondata,reportIOmarkers);
+        segAnns = initializeSegmentAnnotations(jsondata,segAnns);
         fprintf('loadAndFormatData: %f seconds\n',toc(hTic_loadAndFormatData));
     end
 
@@ -3497,14 +3499,12 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 fprintf('Device ID: %s\n', jsondata.deviceid);
             end
             if isfield(jsondata, 'start')
-                fprintf('Recording start: %s\n', jsondata.start);
+                fprintf('Recording start: %s\n', datestr(C3.date_start,'yyyy-mm-ddTHH:MM:SS.FFF'));
             end
-            fprintf('Recording end: %s\n', 'Unknown');
-            fprintf('Recording duration: %s\n', 'Unknown');
+            fprintf('Recording end: %s\n', datestr(C3.date_end,'yyyy-mm-ddTHH:MM:SS.FFF'));
+%             fprintf('Recording duration: %s\n', 'Unknown');
         end
-        fprintf('==========================================================\n');
         fprintf('Total packets (length serial): %i Missing packets: %i\n', length(C3.serialNumber),length(C3.missingSerials));
-        fprintf('Number of packets flagged as "Lead off": %i\n', sum(C3.leadoff ~= 0));
         fprintf('==========================================================\n');
         % this part only makes sense if we are dealing with 16bit ECG samples
         if ~strcmp(fileFormat,'BLE 24bit')
@@ -3517,13 +3517,15 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             fprintf('ECG Comm error (ecg = -32768)      : %i\n',               length(find(C3.ecg.data' == -32768)))
             fprintf('==========================================================\n');
         end
-        table(unique(C3.leadoff), histc(C3.leadoff(:),unique(C3.leadoff)), round(double(histc(C3.leadoff(:),unique(C3.leadoff))./double(length(C3.leadoff))*100)), 'VariableNames',{'Lead_off_val' 'Count' 'Percent'})
+        leadoff_stats = table(unique(C3.leadoff), histc(C3.leadoff(:),unique(C3.leadoff)), round(double(histc(C3.leadoff(:),unique(C3.leadoff))./double(length(C3.leadoff))*100)), 'VariableNames',{'Lead_off_val' 'Count' 'Percent'});
+        display(leadoff_stats);
+        fprintf('==========================================================\n');
     end
 
     function plotSensorData()
         plotECGsegAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,segAnns,hAxesECGsegAnn,hECGsegAnnCheckbox,gS);
         plotEventMarkers(rangeStartIndex.Accel,rangeEndIndex.Accel,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS);
-        plotECGMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
+        plotReportMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
 %         plotECGkitClass(rangeStartIndex.ECG,rangeEndIndex.ECG,cS,hAxesECGkitClass,hECGkitClassCheckbox,gS,CM_beatClass);
         plotQRSann(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,qrsAnn,ibims,hAxesQRS,hDisplayBeatsCheckbox,hDisplayIBICheckbox,gS);
         plotECG(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxesECG,hECG1Checkbox,hECG2Checkbox,hECG3Checkbox,hECGleadoffCheckbox,hECGkitClassCheckbox,cS,gS,CM_beatClass)
@@ -3544,7 +3546,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             if gS.dataLoaded && gS.ecgMarkerMode
                 [gS,reportIOmarkers] = addReportMarker(C3,point1(1,1),xAxisTimeStamps,timeBase,gS,reportIOmarkers,hECGkitMarkerDescription,hECGkitListBox,hButtonECGkitMarkerSave,editColorGreen);
                 if ~gS.ecgInpointSet
-                    plotECGMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
+                    plotReportMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
                 end
             elseif gS.dataLoaded && gS.eventMarkerMode
                 [gS,eventMarkers] = addEventMarker(point1(1,1),xAxisTimeStamps,timeBase,gS,eventMarkers,hEventMarkerDescription,hEventListBox,hButtonEventMarkerSave,editColorGreen,sampleRateFactor);
@@ -4197,23 +4199,46 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             % if the selection includes number 1 (the default 'Display range', then remove it from the deletion process.
             entriesForDeletion = hEventListBox.Value;
             deleteCount = length(entriesForDeletion);
+            deleteDone = false;
             % if only one entry selected for deletion
             if deleteCount == 1
-                eventMarkers(entriesForDeletion(1)) = [];
+                existingStr = eventMarkers(hEventListBox.Value).description;
+                if strncmp('C3 button press',existingStr,15)
+                    warndlg('Deleting of a "C3 button press" event is not allowed!');
+                else
+                    eventMarkers(entriesForDeletion(1)) = [];
+                    deleteDone = true;
+                end
             % if multiple entry selected for deletion
             elseif deleteCount > 1
+                % check that no C3 BLE events are among those about to be deleted
+                C3BLEevents = false;
                 for ii=1:deleteCount
-                    % deleting from the buttom up
-                    eventMarkers(entriesForDeletion(deleteCount+1-ii)) = [];
+                    existingStr = eventMarkers(entriesForDeletion(ii)).description;
+                    if strncmp('C3 button press',existingStr,15)
+                        C3BLEevents = true;
+                        break;
+                    end
+                end
+                if C3BLEevents
+                    warndlg(sprintf('Deleting of a "C3 button press" event is not allowed!\nPlease deselect any such events before deleting.'));
+                else
+                    for ii=1:deleteCount
+                        % deleting from the buttom up
+                        eventMarkers(entriesForDeletion(deleteCount+1-ii)) = [];
+                    end
+                    deleteDone = true;
                 end
             end
             % update the index field
-            for ii=1:length(eventMarkers)
-                eventMarkers(ii).index = ii;
+            if deleteDone
+                for ii=1:length(eventMarkers)
+                    eventMarkers(ii).index = ii;
+                end
+                updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,entriesForDeletion(1)-1);
+                plotEventMarkers(rangeStartIndex.Accel,rangeEndIndex.Accel,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS);
+                hButtonEventMarkerSave.BackgroundColor = editColorGreen;
             end
-            updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,entriesForDeletion(1)-1);
-            plotEventMarkers(rangeStartIndex.Accel,rangeEndIndex.Accel,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS);
-            hButtonEventMarkerSave.BackgroundColor = editColorGreen;
         end
     end
 
@@ -4222,15 +4247,19 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             % Edit only one selection at a time.
             if length(hEventListBox.Value) == 1
                 existingStr = eventMarkers(hEventListBox.Value).description;
-                options.Resize='on';
-                answer = inputdlg('Enter new description:','Edit selected entry',1,{existingStr},options);
-                if ~isempty(answer)
-                    eventMarkers(hEventListBox.Value).description = answer{1,1};
-                    updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,hEventListBox.Value);
-                    hButtonEventMarkerSave.BackgroundColor = editColorGreen;
+                if strncmp('C3 button press',existingStr,15)
+                    warndlg('Editing of a "C3 button press" event is not allowed!');
+                else
+                    options.Resize='on';
+                    answer = inputdlg('Enter new description:','Edit selected event marker',1,{existingStr},options);
+                    if ~isempty(answer)
+                        eventMarkers(hEventListBox.Value).description = answer{1,1};
+                        updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,hEventListBox.Value);
+                        hButtonEventMarkerSave.BackgroundColor = editColorGreen;
+                    end
                 end
             else
-                warndlg('For editing, select only one entry from the list!');
+                warndlg('For editing, select only one event marker from the list!');
             end
         end
     end
@@ -4240,11 +4269,20 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             % load the JSON again, so any recent saves (e.g. of report markers) are preserved
             jsondata = loadjson(json_fullpath);
             numMarkers = size(eventMarkers,2);
-            jsondata.events = cell(1,numMarkers);
+            % find indices for event that are NOT a 'C3 button press',
+            % which are from the BLE-file and should not be saved among the
+            % JSON events.
+            jsonEventIdx = [];
             for ii=1:numMarkers
-                jsondata.events{1,ii}.eventid = eventMarkers(ii).eventid;
-                jsondata.events{1,ii}.serial = eventMarkers(ii).serial;
-                jsondata.events{1,ii}.eventname = eventMarkers(ii).description;
+                if ~strncmp('C3 button press',eventMarkers(ii).description,15)
+                    jsonEventIdx(end+1) = ii;
+                end
+            end
+            jsondata.events = cell(1,length(jsonEventIdx));
+            for ii=1:length(jsonEventIdx)
+                jsondata.events{1,ii}.eventid = eventMarkers(jsonEventIdx(ii)).eventid;
+                jsondata.events{1,ii}.serial = eventMarkers(jsonEventIdx(ii)).serial;
+                jsondata.events{1,ii}.eventname = eventMarkers(jsonEventIdx(ii)).description;
             end
             savejson('',jsondata,'FileName',json_fullpath,'ParseLogical',1);
             hButtonEventMarkerSave.BackgroundColor = panelColor;
@@ -4263,7 +4301,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
 
     function ecgkitShowMarkersFcn(~,~)
         if hAnalysisMarkersCheckbox.Value == 1
-            plotECGMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
+            plotReportMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
         else
             cla(hAxesECGMarkers);
         end
@@ -4316,7 +4354,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 warndlg(sprintf(['No JSON data loaded! Can not save markers.\n\n',...
                 'ECGkit analysis can still be performed within the markers you set\nin the current session.\n\n',...
                 'If you want to be able to save markers, make sure\n',...
-                'that an appropriate JSON file is present in the same directory\nas the sensor data file.\n',...
+                'that an appropriate JSON file is present in the same directory\nas the sensor data file, before loading it.\n',...
                 'For BLE-files the JSON should have the same name as the BLE.\nFor BIN-files the name can be arbitrary.']));
             end
         end
@@ -4357,7 +4395,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             end
             [gS,reportIOmarkers] = addReportOutMarker(C3,deltaHMS,xAxisTimeStamps,timeBase,gS,reportIOmarkers,hECGkitMarkerDescription,hECGkitListBox,hButtonECGkitMarkerSave,editColorGreen);
             if ~gS.ecgInpointSet
-                plotECGMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
+                plotReportMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
             end
         else
             warndlg('Only integer numerical input accepted!');
@@ -4365,7 +4403,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
     function ecgkitListBoxFcn(~,~)
-        plotECGMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
+        plotReportMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
     end
 
     function ecgkitMarkerDelFunc(~,~)
@@ -4379,7 +4417,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 % remember, the indices of reportIOmarkers are offset by -1, relative to the listbox indices
                 reportIOmarkers(entriesForDeletion(1)-1) = [];
                 updateEcgkitListbox(hECGkitListBox,reportIOmarkers,xAxisTimeStamps,timeBase,entriesForDeletion(1)-1);
-                plotECGMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
+                plotReportMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
                 hButtonECGkitMarkerSave.BackgroundColor = editColorGreen;
             % if multiple entry selected for deletion
             elseif deleteCount > 1
@@ -4388,7 +4426,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     reportIOmarkers(entriesForDeletion(deleteCount+1-ii)-1) = [];
                 end
                 updateEcgkitListbox(hECGkitListBox,reportIOmarkers,xAxisTimeStamps,timeBase,entriesForDeletion(1)-1);
-                plotECGMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
+                plotReportMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
                 hButtonECGkitMarkerSave.BackgroundColor = editColorGreen;
             end
         end
@@ -5139,7 +5177,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
 end
 
 %% Functions (Work in progress... moving inline functions outside of main function.)
-function plotECGMarkers(startIdx,endIdx,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS)
+function plotReportMarkers(startIdx,endIdx,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS)
     cla(hAxesECGMarkers);
     if ~isempty(reportIOmarkers)
         if hAnalysisMarkersCheckbox.Value == 1
@@ -5238,18 +5276,18 @@ function plotEventMarkers(startIdx,endIdx,eventMarkers,hAxesEventMarkers,hEventM
         % indices of non-selected markers within currently visible range
         nonSelectedMarkers = setdiff(markerIndices,selectedMakers);
         hAxesEventMarkers.XLim = [startIdx endIdx];
-        for ii=1:length(selectedMakers)
-            plot(hAxesEventMarkers, [eventMarkers(selectedMakers(ii)).serial eventMarkers(selectedMakers(ii)).serial], [0 1], 'Color', min(gS.colors.col{7}*1.3,1), 'LineWidth', 1.5, 'LineStyle', ':');
-        end
         for ii=1:length(nonSelectedMarkers)
             plot(hAxesEventMarkers, [eventMarkers(nonSelectedMarkers(ii)).serial eventMarkers(nonSelectedMarkers(ii)).serial], [0 1], 'Color', gS.colors.col{7}, 'LineWidth', 1.5, 'LineStyle', ':');
         end
-        % add numbers for markers
         for ii=1:length(selectedMakers)
-            text(eventMarkers(selectedMakers(ii)).serial, 0.075, sprintf('%02d',selectedMakers(ii)), 'HorizontalAlignment', 'left', 'FontSize', 8, 'FontWeight', 'bold', 'BackgroundColor', min(gS.colors.col{7}*1.3,1), 'Color', gS.colors.col{4}, 'Margin', 0.4, 'EdgeColor', 'none', 'Parent', hAxesEventMarkers);
+            plot(hAxesEventMarkers, [eventMarkers(selectedMakers(ii)).serial eventMarkers(selectedMakers(ii)).serial], [0 1], 'Color', min(gS.colors.col{7}*1.3,1), 'LineWidth', 1.5, 'LineStyle', ':');
         end
+        % add numbers for markers
         for ii=1:length(nonSelectedMarkers)
             text(eventMarkers(nonSelectedMarkers(ii)).serial, 0.075, sprintf('%02d',nonSelectedMarkers(ii)), 'HorizontalAlignment', 'left', 'FontSize', 8, 'FontWeight', 'bold', 'BackgroundColor', gS.colors.col{7}, 'Color', gS.colors.col{4}, 'Margin', 0.4, 'EdgeColor', 'none', 'Parent', hAxesEventMarkers);
+        end
+        for ii=1:length(selectedMakers)
+            text(eventMarkers(selectedMakers(ii)).serial, 0.075, sprintf('%02d',selectedMakers(ii)), 'HorizontalAlignment', 'left', 'FontSize', 8, 'FontWeight', 'bold', 'BackgroundColor', min(gS.colors.col{7}*1.3,1), 'Color', gS.colors.col{4}, 'Margin', 0.4, 'EdgeColor', 'none', 'Parent', hAxesEventMarkers);
         end
     end
 end
@@ -7262,6 +7300,8 @@ function genECGkitReport(C3,sampleRateFactor,indexStartECG,indexEndECG,xAxisTime
         % Offset serial index to match the exported segment.
         eventCounterDiff = diff(C3.eventCounter);
         eventIndices = find(eventCounterDiff > 0);
+        % Trim events that are less than 3 seconds apart.
+        eventIndices = trimEvents(eventIndices, sampleRateFactor);
         % C3events in the segment being exported for analysis.
         % Original index numbers offset by -accelStartIdx, to align with occurence in the segment.
         eventsInSegment = eventIndices(eventIndices > accelStartIdx & eventIndices < accelEndIdx) - accelStartIdx + 1;
@@ -7380,14 +7420,37 @@ function updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,
     hEventListBox.Value = max(1,selectedNum);
 end
 
+%function for trimming number of events displayed from the BLE-file (only 24bit)
+function eventIndices = trimEvents(eventIndices, sampleRateFactor)
+    % Minimum difference between events, in seconds
+    minDiffSecs = 3;
+    % First event should always be accepted, hence the '[true;' part, which
+    % also makes the length of the diff array match the length of the array being diff'ed.
+    eventIndices = eventIndices([true; diff(eventIndices) > (250/sampleRateFactor.ECG)*minDiffSecs]);
+end
+
 %function called when loading new sensor data. Fills jsondata.events into eventMarkers.
-function eventMarkers = initializEventMarkers(jsondata,eventMarkers)
+function eventMarkers = initializeEventMarkersFromBLE(C3,eventMarkers,sampleRateFactor)
+    eventIndices = find(diff(C3.eventCounter) > 0);
+    eventIndices = trimEvents(eventIndices, sampleRateFactor);
+    idxOffset = length(eventMarkers);
+    for ii=1:length(eventIndices)
+        eventMarkers(ii+idxOffset).index = ii+idxOffset;
+        eventMarkers(ii+idxOffset).serial = eventIndices(ii);
+        eventMarkers(ii+idxOffset).description = ['C3 button press #' num2str(ii)];
+        eventMarkers(ii+idxOffset).eventid = 'BLE'; %char(java.util.UUID.randomUUID);
+    end
+end
+
+%function called when loading new sensor data. Fills jsondata.events into eventMarkers.
+function eventMarkers = initializeEventMarkersFromJson(jsondata,eventMarkers)
     if isfield(jsondata,'events') && ~isempty(jsondata.events)
+        idxOffset = length(eventMarkers);
         for ii=1:size(jsondata.events,2)
-            eventMarkers(ii).index = ii;
-            eventMarkers(ii).serial = jsondata.events{1,ii}.serial;
-            eventMarkers(ii).description = jsondata.events{1,ii}.eventname;
-            eventMarkers(ii).eventid = jsondata.events{1,ii}.eventid;
+            eventMarkers(ii+idxOffset).index = ii+idxOffset;
+            eventMarkers(ii+idxOffset).serial = jsondata.events{1,ii}.serial;
+            eventMarkers(ii+idxOffset).description = jsondata.events{1,ii}.eventname;
+            eventMarkers(ii+idxOffset).eventid = jsondata.events{1,ii}.eventid;
         end
     end
 end

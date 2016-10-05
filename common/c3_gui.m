@@ -16,6 +16,7 @@ reportIOmarkers = struct([]);
 eventMarkers = struct([]);
 segAnns = struct([]);
 pathName = '';
+partialPathStr = '';
 sourceName = '';
 fileName = '';
 full_path = '';
@@ -45,22 +46,13 @@ gS = struct('dataLoaded',false,...
             'segAnnDispECG',false,...
             'segAnnDispResp',false,...
             'segAnnDispAccel',false,...
+            'ecgBrowserCh',1,...
+            'ecgBrowserNumRows',6,...
+            'ecgBrowserYminmV',-0.75,...
+            'ecgBrowserYmaxmV',0.75,...
+            'unitsPrmV',0,...
             'colors',[]);
-        
-gS.colors.col = {[1 0 0],... % red, for ECG1, Resp, AccelX, Temp Obj
-                 [0 0.8 0],... % green
-                 [0 0 1],... % blue
-                 [0 0 0],... % black
-                 [1 1 1],... % white
-                 [0.5 0.5 0.5],... % grey
-                 [1.0 0.68 0.1],... % light-orange, for event markers
-                 [0.7451 0.2078 0.8588],... % purple-ish, for analysis markers
-                 [0.95 0.45 0],... % S
-                 [0.95 0 0.95],... % V
-                 [0, 0.7 0.3],... % F
-                 [0.5000 0.8016 1],... % U
-                 [0 0.4470 0.7410]}; % N
-            
+                    
 % Set a temporary screen resolution of 1920x1080 pixels while we construct GUI.
 % Will be modified to actual screen resolution before GUI is displayed.
 % Currently the GUI doesn't scale well to resolutions much smaller than
@@ -74,7 +66,21 @@ editColor = [1.0 1.0 1.0]; % color of text edit boxes
 editColorGreen = [0.5 1 0.5]; % color of buttons when in edit mode
 dimmedTextColor = [0.4 0.4 0.4];
 panelBorderColor = [1.0 1.0 1.0]; % color of the line between panels
-colorGreen = [0.0 0.8 0.0];
+
+gS.colors.col = {[1 0 0],... % red, for ECG1, Resp, AccelX, Temp Obj
+                 [0 0.6 0],... % green
+                 [0 0 1],... % blue
+                 [0 0 0],... % black
+                 [1 1 1],... % white
+                 [0.5 0.5 0.5],... % grey
+                 [1.0 0.68 0.1],... % light-orange, for event markers
+                 [0.7451 0.2078 0.8588],... % purple-ish, for analysis markers
+                 [0.95 0.45 0],... % S
+                 [0.95 0 0.95],... % V
+                 [0, 0.7 0.3],... % F
+                 [0.5000 0.8016 1],... % U
+                 [0 0.4470 0.7410],... % N
+                 panelColor}; % can be set in ECG Browser
 
 rangeStartIndex.ECG = 0;
 rangeEndIndex.ECG = 0;
@@ -107,10 +113,12 @@ sampleRateFactor.Temp = 0;
 ibims = []; ibiDiffms = []; qrsAnnIndices = []; stdIBISegments = [];
 ibiSegmentSampleNums = [];
 
+hAxECGbrowser = gobjects(6,1);
+
 %% GUI
 
 % (MATLAB R2014b+) turn off graphics smoothing on graphics root object
-set(groot,'DefaultFigureGraphicsSmoothing','off')
+% set(groot,'DefaultFigureGraphicsSmoothing','off')
 
 % Create GUI window, visibility is turned off while the GUI elements are added
 hFig = figure('Name','Cortrium C3 sensor data',...
@@ -2849,7 +2857,7 @@ uicontrol('Parent',hPanelSensorDisplay,...
     'HorizontalAlignment','left',...
     'String','ECG_1',...
     'FontWeight','normal',...
-    'ForegroundColor',[1.0 0 0],...
+    'ForegroundColor',gS.colors.col{1},...
     'FontSize',8,...
     'BackgroundColor',panelColor);
 
@@ -2870,7 +2878,7 @@ uicontrol('Parent',hPanelSensorDisplay,...
     'HorizontalAlignment','left',...
     'String','ECG_2',...
     'FontWeight','normal',...
-    'ForegroundColor',colorGreen,...
+    'ForegroundColor',gS.colors.col{2},...
     'FontSize',8,...
     'BackgroundColor',panelColor);
 
@@ -2891,7 +2899,7 @@ uicontrol('Parent',hPanelSensorDisplay,...
     'HorizontalAlignment','left',...
     'String','ECG_3',...
     'FontWeight','normal',...
-    'ForegroundColor',[0 0 1.0],...
+    'ForegroundColor',gS.colors.col{3},...
     'FontSize',8,...
     'BackgroundColor',panelColor);
 
@@ -2915,6 +2923,17 @@ uicontrol('Parent',hPanelSensorDisplay,...
     'ForegroundColor',[0.5 0.5 0.5],...
     'FontSize',8,...
     'BackgroundColor',panelColor);
+
+% Button, Full-screen ECG browser in a new, modal, window
+hBtnECGbrowser = uicontrol('Parent',hPanelSensorDisplay,...
+    'Style','pushbutton',...
+    'Units','normalized',...
+    'Position',[0.946,0.785,0.045,0.045],...
+    'String','<html><center>ECG<br>browser',...
+    'HorizontalAlignment','center',...
+    'FontWeight','normal',...
+    'FontSize',8,...
+    'Callback',@ecgBrowserFunc);
 
 % Axes object for Respiration plot (impedance)
 hAxesResp = axes('Parent',hPanelSensorDisplay,...
@@ -3023,7 +3042,7 @@ uicontrol('Parent',hPanelSensorDisplay,...
     'HorizontalAlignment','left',...
     'String','Accel_Y',...
     'FontWeight','normal',...
-    'ForegroundColor',colorGreen,...
+    'ForegroundColor',gS.colors.col{2},...
     'FontSize',8,...
     'BackgroundColor',panelColor);
 
@@ -3134,7 +3153,7 @@ uicontrol('Parent',hPanelSensorDisplay,...
     'HorizontalAlignment','left',...
     'String','Surface',...
     'FontWeight','normal',...
-    'ForegroundColor',colorGreen,...
+    'ForegroundColor',gS.colors.col{2},...
     'FontSize',8,...
     'BackgroundColor',panelColor);
 
@@ -3254,7 +3273,8 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 gS.flipEcg1 = false;
                 gS.flipEcg2 = false;
                 gS.flipEcg3 = false;
-                sourceName = updateDirectoryInfo(full_path,jsondata);
+                gS.unitsPrmV = getUnitsPerMillivolt(jsondata,fileFormat);
+                [partialPathStr, sourceName] = updateDirectoryInfo(full_path,jsondata);
                 setRecordingTimeInfo(C3,hTextTimeRecording,hTextDurationRecording);
                 timeBase = getTimeBase(hTimebaseButtonGroup,hLabelTimeDisplayed);
                 [xAxisTimeStamps, timeStart, timeEnd] = calcTimeStamps(C3,xAxisTimeStamps,timeBase,timeStart,timeEnd);
@@ -3941,7 +3961,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         fileFormat = getFileFormat(hFileFormatButtonGroup);
     end
 
-    function sourceName = updateDirectoryInfo(full_path,jsondata)
+    function [partialPathStr, sourceName] = updateDirectoryInfo(full_path,jsondata)
         if isempty(jsondata)
             jsonDataAvailable = '';
         else
@@ -3954,7 +3974,15 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             otherwise
                 sourceName = dirNameParts(length(dirNameParts));
         end
-        set(hPanelSensorDisplay,'Title',strcat('File: ...', filesep, {' '}, dirNameParts(end-2), {' '}, filesep, {' '}, dirNameParts(end-1), {' '}, filesep, {' '}, dirNameParts(end), jsonDataAvailable));
+        partialPathStr = '';
+        if length(dirNameParts) > 2
+            partialPathStr = strcat('... ', filesep, {' '}, dirNameParts(end-2), {' '}, filesep, {' '}, dirNameParts(end-1), {' '}, filesep, {' '});
+        elseif length(dirNameParts) < 3
+            partialPathStr = strcat('... ', filesep, {' '}, dirNameParts(end-1), {' '}, filesep, {' '});
+        elseif length(dirNameParts) < 2
+            partialPathStr = '';
+        end
+        set(hPanelSensorDisplay,'Title',strcat('File: ', partialPathStr, dirNameParts(end), jsonDataAvailable));
     end
 
 %% Functions for updating plots, based on checkbox selections
@@ -4045,6 +4073,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
 
     function segSelDragFunc(~,~)
         if hButtonSegSelDrag.Value == 1
+            if ~hECGsegAnnCheckbox.Value
+                hECGsegAnnCheckbox.Value = 1;
+                ecgSegAnnShowFcn(hECGsegAnnCheckbox,[]);
+            end
             gS.segAnnMode = 'drag';
             hButtonSegSelDrag.BackgroundColor = editColorGreen;
             % Disable other marker and selection modes
@@ -4065,6 +4097,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
 
     function segSelClickFunc(~,~)
         if hButtonSegSelClick.Value == 1
+            if ~hECGsegAnnCheckbox.Value
+                hECGsegAnnCheckbox.Value = 1;
+                ecgSegAnnShowFcn(hECGsegAnnCheckbox,[]);
+            end
             gS.segAnnMode = 'click';
             hButtonSegSelClick.BackgroundColor = editColorGreen;
             deselectButtons(hButtonSegSelDrag,hBtnClassAnnSel);
@@ -4155,6 +4191,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hEventMarkerDescription.BackgroundColor = editColor;
         else
             gS.eventMarkerMode = true;
+            if ~hEventMarkersCheckbox.Value
+                hEventMarkersCheckbox.Value = 1;
+                eventsShowMarkersFcn(hEventMarkersCheckbox,[]);
+            end
             hButtonEventMarkerAddToggle.String = 'On';
             hButtonEventMarkerAddToggle.BackgroundColor = editColorGreen;
             hEventMarkerDescription.BackgroundColor = editColorGreen;
@@ -4922,6 +4962,364 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
 %% Functions for creating separate, floating plot windows
+    
+    function ecgBrowserFunc(varargin)
+        if gS.dataLoaded
+            winXpos = 0;
+            winYpos = 0;
+            winWidth = screenSize(3);
+            winHeight = screenSize(4);
+            % Figure window
+            hECGbrowser = figure('Numbertitle','off','Name',...
+                ['ECG   File: ' char(sourceName)],...
+                'OuterPosition', [winXpos winYpos winWidth winHeight],...
+                'MenuBar', 'none','Toolbar','none',...
+                'WindowStyle','modal',...
+                'PaperPositionMode','auto',...
+                'Visible','off');
+            % Panel for ECG plots
+            hPnlECGbrAxes = uipanel('Parent',hECGbrowser,...
+                'BorderType','line',...
+                'HighlightColor',panelBorderColor,...
+                'Position',[0 0.05 1 0.925],...
+                'BackgroundColor',gS.colors.col{14});
+            % Axes for plots
+            ecgAxMargin = 1/(gS.ecgBrowserNumRows+4)*0.05;
+            ecgAxHeight = (1/gS.ecgBrowserNumRows) - ecgAxMargin;
+            hAxECGbrowser = gobjects(gS.ecgBrowserNumRows,1);
+            for ia=1:gS.ecgBrowserNumRows
+                hAxECGbrowser(ia) = axes('Parent',hPnlECGbrAxes,'Position',[0.02,(1-((ecgAxHeight*ia)+(ecgAxMargin*0.5)+(ecgAxMargin*(ia-1)))),0.96,ecgAxHeight],'Visible','off'); % ,'Visible','off'
+                hold(hAxECGbrowser(ia),'on');
+                xlim(hAxECGbrowser(ia),'manual');
+                ylim(hAxECGbrowser(ia),'manual');
+                set(hAxECGbrowser(ia),'Xticklabel',[]);
+                hAxECGbrowser(ia).XColor = panelColor;
+    %             set(hAxECGbrowser(ia),'Yticklabel',[]);
+                hAxECGbrowser(ia).TickLength = [0.0025 0];
+                hAxECGbrowser(ia).YLim = [gS.ecgBrowserYminmV*gS.unitsPrmV gS.ecgBrowserYmaxmV*gS.unitsPrmV];
+                hAxECGbrowser(ia).FontSize = 8;
+            end
+    %         figColor = get(hFig,'Color');
+    %         hAxECGbrowser.XColor = figColor;
+    %         hAxECGbrowser.YColor = figColor;
+            % Panel for controls
+            hPnlECGbrCtrl = uipanel('Parent',hECGbrowser,...
+                'BorderType','line',...
+                'HighlightColor',panelColor,...
+                'Position',[0 0 1 0.05],...
+                'BackgroundColor',panelColor);
+            % Text-edit for min Y-limit of ECG browser axes
+            uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','text',...
+                'Units','normalized',...
+                'Position',[0.02,0.55,0.035,0.36],...
+                'String','Y-axis limit:',...
+                'HorizontalAlignment','left',...
+                'FontSize',8,...
+                'BackgroundColor',panelColor);
+            hEditYminECGbr = uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','edit',...
+                'Enable','on',...
+                'Units','normalized',...
+                'Position',[0.055,0.55,0.025,0.45],...
+                'String',num2str(gS.ecgBrowserYminmV),...
+                'HorizontalAlignment','center',...
+                'FontSize',8,...
+                'BackgroundColor',editColor);
+            uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','text',...
+                'Units','normalized',...
+                'Position',[0.0805,0.55,0.0095,0.36],...
+                'String','to',...
+                'HorizontalAlignment','center',...
+                'FontSize',8,...
+                'BackgroundColor',panelColor);
+            % Text-edit for max Y-limit of ECG browser axes
+            hEditYmaxECGbr = uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','edit',...
+                'Enable','on',...
+                'Units','normalized',...
+                'Position',[0.09,0.55,0.025,0.45],...
+                'String',num2str(gS.ecgBrowserYmaxmV),...
+                'HorizontalAlignment','center',...
+                'FontSize',8,...
+                'BackgroundColor',editColor);
+            uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','text',...
+                'Units','normalized',...
+                'Position',[0.116,0.55,0.012,0.36],...
+                'String','mV',...
+                'HorizontalAlignment','left',...
+                'FontSize',8,...
+                'BackgroundColor',panelColor);
+            % Button for setting panel color
+            uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','pushbutton',...
+                'Units','normalized',...
+                'Position',[0.15,0.55,0.05,0.45],...
+                'String','Background',...
+                'HorizontalAlignment','center',...
+                'FontSize',8,...
+                'BackgroundColor',gS.colors.col{14},...
+                'Callback',{@ecgBrBgColFcn,hPnlECGbrAxes});
+            % Button for saving image of ECG Browser
+            hSaveImgECGbr = uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','pushbutton',...
+                'Units','normalized',...
+                'Position',[0.475,0.55,0.05,0.45],...
+                'String','Save Image',...
+                'HorizontalAlignment','center',...
+                'FontSize',8,...
+                'BackgroundColor',panelColor);
+            % Popup menu, for selecting number of rows of ECG plot
+            hPopRowsECGbr = uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style', 'popup',...
+                'Units','normalized',...
+                'Position',[0.745,0.6,0.04,0.4],...
+                'String', {'4 rows','5 rows','6 rows','7 rows','8 rows','9 rows','10 rows'},...
+                'FontSize',8);
+            hPopRowsECGbr.Value = gS.ecgBrowserNumRows - 3;
+            % Edit for setting number of seconds displayed per row in ECG browser
+            hEditSecRowECGbr = uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','edit',...
+                'Units','normalized',...
+                'Position',[0.794,0.55,0.025,0.45],...
+                'String',sprintf('%.1f',(((rangeEndIndex.ECG-rangeStartIndex.ECG+1)/C3.ecg.fs)/gS.ecgBrowserNumRows)),...
+                'HorizontalAlignment','center',...
+                'FontSize',8,...
+                'BackgroundColor',editColor);
+            uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','text',...
+                'Units','normalized',...
+                'Position',[0.82,0.55,0.05,0.36],...
+                'String','Seconds/row',...
+                'HorizontalAlignment','left',...
+                'FontSize',8,...
+                'BackgroundColor',panelColor);
+            % Radio buttons group, ECG channels
+            hEcgBrBtnGrp = uibuttongroup('Parent',hPnlECGbrCtrl,...
+                'Units','normalized',...
+                'Position',[0.87,0.55,0.12,0.45],...
+                'BorderType','none',...
+                'BackgroundColor',panelColor);
+            % Radio button, ECG1
+            hEcgBrBtn1 = uicontrol(hEcgBrBtnGrp,...
+                'Style','radiobutton',...
+                'Enable','on',...
+                'String','ECG1',...
+                'Units','normalized',...
+                'Position',[0.02,0.05,0.4,1],...
+                'BackgroundColor',panelColor,...
+                'ForegroundColor',[1 0 0],...
+                'HandleVisibility','off');
+            % Radio button, ECG2
+            hEcgBrBtn2 = uicontrol(hEcgBrBtnGrp,...
+                'Style','radiobutton',...
+                'Enable','on',...
+                'String','ECG2',...
+                'Units','normalized',...
+                'Position',[0.35,0.05,0.4,1],...
+                'BackgroundColor',panelColor,...
+                'ForegroundColor',[0 0.6 0],...
+                'HandleVisibility','off');
+            % Radio button, ECG3
+            hEcgBrBtn3 = uicontrol(hEcgBrBtnGrp,...
+                'Style','radiobutton',...
+                'Enable','on',...
+                'String','ECG3',...
+                'Units','normalized',...
+                'Position',[0.68,0.05,0.4,1],...
+                'BackgroundColor',panelColor,...
+                'ForegroundColor',[0 0 1],...
+                'HandleVisibility','off');
+            % preselecting ECG1 radio button
+            set(hEcgBrBtnGrp,'selectedobject',hEcgBrBtn1);
+            % Slider for displayed segment of ECG
+            hSliderECGbr = uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','slider',...
+                'Enable','on',...
+                'Units','normalized',...
+                'Position',[0.02,0.02,0.96,0.48],...
+                'Min',1,'Max',1000,...
+                'Value',500,...
+                'SliderStep',[0.1 1],...
+                'BackgroundColor',panelColor);
+            % Panel for title and time info
+            hPnlECGbrTitle = uipanel('Parent',hECGbrowser,...
+                'BorderType','line',...
+                'HighlightColor',panelColor,...
+                'Position',[0 0.975 1 0.025],...
+                'BackgroundColor',panelColor);
+            % text for file info
+            uicontrol('Parent',hPnlECGbrTitle,...
+                'Style','text',...
+                'Units','normalized',...
+                'Position',[0.02 0 0.65 0.89],...
+                'HorizontalAlignment','left',...
+                'String',sprintf('File: %s%s', strjoin(partialPathStr), strjoin(sourceName)),...
+                'FontSize',11,...
+                'FontWeight','bold',...
+                'ForegroundColor',dimmedTextColor,...
+                'BackgroundColor',panelColor);
+            hTxtECGTime = uicontrol('Parent',hPnlECGbrTitle,...
+                'Style','text',...
+                'Units','normalized',...
+                'Position',[0.75 0 0.23 0.89],...
+                'HorizontalAlignment','right',...
+                'String','Time displayed',...
+                'FontSize',11,...
+                'FontWeight','bold',...
+                'ForegroundColor',dimmedTextColor,...
+                'BackgroundColor',panelColor);
+            % Show figure window (ECG browser)
+            hECGbrowser.Visible = 'on';
+            % Add callback functions for ECG browser window and uicontrols
+            % that need to be aware of uicontrols created after their own point of creation.
+            hECGbrowser.KeyPressFcn = {@keyFcnECGbrowser,hSliderECGbr,hEcgBrBtnGrp,hEcgBrBtn1,hEcgBrBtn2,hEcgBrBtn3,hTxtECGTime};
+            hECGbrowser.CloseRequestFcn = @ecgBrCloseReqFcn;
+            hPopRowsECGbr.Callback = {@ecgBrRowsFcn,hPnlECGbrAxes,hEditSecRowECGbr,hSliderECGbr,hTxtECGTime};
+            hEcgBrBtnGrp.SelectionChangedFcn = {@ecgChSelFcn,hTxtECGTime};
+            hEditYminECGbr.Callback = {@ecgBrYlimFcn,'min',hEditYmaxECGbr};
+            hEditYmaxECGbr.Callback = {@ecgBrYlimFcn,'max',hEditYminECGbr};
+            hEditSecRowECGbr.Callback = {@ecgBrSecRowFcn,hSliderECGbr,hTxtECGTime};
+            hSliderECGbr.Callback = {@ecgBrSliderFcn,hTxtECGTime};
+            hSaveImgECGbr.Callback = {@ecgBrSaveImgFcn,hECGbrowser,hEcgBrBtnGrp};
+            ecgBrSetSlider(C3,rangeStartIndex,rangeEndIndex,hSliderECGbr);
+            gS.ecgBrowserCh = 1;
+            % Plot
+            plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+        else
+            warndlg('No ECG data to display! Please load data.');
+        end
+    end
+
+    function ecgBrSaveImgFcn(hObj,~,hECGbrowser,hEcgBrBtnGrp)
+        hBtn = get(hEcgBrBtnGrp,'selectedobject');
+        ecgBrChStr = get(hBtn,'String');
+        set(hObj, 'Enable', 'off');
+        drawnow;
+        set(hObj, 'Enable', 'on');
+        ecgBrSaveImg(hECGbrowser,ecgBrChStr,xAxisTimeStamps,timeBase,rangeStartIndex.ECG,rangeEndIndex.ECG,full_path);
+    end
+
+    function ecgBrSliderFcn(hSliderECGbr,~,hTxtECGTime)
+        currentRange = (rangeEndIndex.ECG - rangeStartIndex.ECG + 1);
+        rangeStartIndex.ECG = round(hSliderECGbr.Value - currentRange*0.5);
+        rangeEndIndex.ECG = rangeStartIndex.ECG + currentRange - 1;
+        [startIdx, endIdx] = setRangeWithinBounds(rangeStartIndex.ECG, rangeEndIndex.ECG, C3.ecg.samplenum);
+        rangeStartIndex.ECG = startIdx;
+        rangeEndIndex.ECG = endIdx;
+        % hack to bring focus back to figure window
+        set(hSliderECGbr, 'Enable', 'off');
+        drawnow;
+        set(hSliderECGbr, 'Enable', 'on');
+        plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+%         fprintf('FCN: CurRange: %d Slider min: %d  max: %d  val: %d   minStep: %f  maxStep: %f\n',currentRange,hSliderECGbr.Min, hSliderECGbr.Max, hSliderECGbr.Value, hSliderECGbr.SliderStep(1), hSliderECGbr.SliderStep(2));
+    end
+
+    function ecgBrRowsFcn(hObj,~,hPnlECGbrAxes,hEditSecRowECGbr,hSliderECGbr,hTxtECGTime)
+        % Create new set of axes for plots
+        oldNumRows = gS.ecgBrowserNumRows;
+        gS.ecgBrowserNumRows = hObj.Value + 3;
+        ecgAxMargin = 1/(gS.ecgBrowserNumRows+4)*0.05;
+        ecgAxHeight = (1/gS.ecgBrowserNumRows) - ecgAxMargin;
+        yLimMin = gS.ecgBrowserYminmV*gS.unitsPrmV;
+        yLimMax = gS.ecgBrowserYmaxmV*gS.unitsPrmV;
+        delete(hAxECGbrowser);
+        hAxECGbrowser = gobjects(gS.ecgBrowserNumRows,1);
+        for ia=1:gS.ecgBrowserNumRows
+            hAxECGbrowser(ia) = axes('Parent',hPnlECGbrAxes,'Position',[0.02,(1-((ecgAxHeight*ia)+(ecgAxMargin*0.5)+(ecgAxMargin*(ia-1)))),0.96,ecgAxHeight],'Visible','off'); % ,'Visible','off'
+            hold(hAxECGbrowser(ia),'on');
+            xlim(hAxECGbrowser(ia),'manual');
+            hAxECGbrowser(ia).YLim = [yLimMin yLimMax];
+            set(hAxECGbrowser(ia),'Xticklabel',[]);
+%             set(hAxECGbrowser(ia),'Yticklabel',[]);
+            hAxECGbrowser(ia).TickLength = [0.0025 0];
+            hAxECGbrowser(ia).FontSize = 8;
+        end
+        % hack to bring focus back to figure window
+        set(hObj, 'Enable', 'off');
+        drawnow;
+        set(hObj, 'Enable', 'on');
+        rangeEndIndex.ECG = rangeStartIndex.ECG + round(((rangeEndIndex.ECG - rangeStartIndex.ECG)/oldNumRows)*gS.ecgBrowserNumRows);
+        [rangeStartIndex, rangeEndIndex] = setRangeEcgBr(rangeStartIndex, rangeEndIndex, C3);
+        % setting the seconds-per-row value (string), in case range had to be restricted
+        hEditSecRowECGbr.String = sprintf('%.1f',((rangeEndIndex.ECG-rangeStartIndex.ECG+1)/gS.ecgBrowserNumRows)/C3.ecg.fs);
+        ecgBrSetSlider(C3,rangeStartIndex,rangeEndIndex,hSliderECGbr);
+        plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+    end
+
+    function ecgChSelFcn(hObj,~,hTxtECGTime)
+        hSubObj = get(hObj,'selectedobject');
+        ecgBrChStr = get(hSubObj,'String');
+        % hack to bring focus back to figure window
+        set(hSubObj, 'Enable', 'off');
+        drawnow;
+        set(hSubObj, 'Enable', 'on');
+        switch ecgBrChStr
+            case 'ECG1'
+                gS.ecgBrowserCh = 1;
+                plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+            case 'ECG2'
+                gS.ecgBrowserCh = 2;
+                plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+            case 'ECG3'
+                gS.ecgBrowserCh = 3;
+                plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+        end
+    end
+
+    function ecgBrYlimFcn(hObj,~,yLimStr,hObj2)
+        if strcmp(yLimStr,'min')
+            yMinmV = getFloatVal(hObj);
+            yMaxmV = getFloatVal(hObj2);
+        else
+            yMaxmV = getFloatVal(hObj);
+            yMinmV = getFloatVal(hObj2);
+        end
+        % hack to bring focus back to figure window
+        set(hObj, 'Enable', 'off');
+        drawnow;
+        set(hObj, 'Enable', 'on');
+        if ~isempty(yMinmV) && ~isempty(yMaxmV) && yMinmV < yMaxmV
+            gS.ecgBrowserYminmV = yMinmV;
+            gS.ecgBrowserYmaxmV = yMaxmV;
+            yMin = gS.ecgBrowserYminmV*gS.unitsPrmV;
+            yMax = gS.ecgBrowserYmaxmV*gS.unitsPrmV;
+            for ii=1:length(hAxECGbrowser)
+                hAxECGbrowser(ii).YLim = [yMin yMax];
+            end
+        else
+            if ~isempty(yMinmV) && ~isempty(yMaxmV) && yMinmV > yMaxmV
+                warndlg('The right side limit should be greater than the left side limit!');
+            end
+        end
+    end
+
+    function ecgBrBgColFcn(hObj,~,hPnlECGbrAxes)
+        hPnlECGbrAxes.BackgroundColor = uisetcolor(gS.colors.col{14});
+        set(hObj, 'Enable', 'off');
+        drawnow;
+        set(hObj, 'Enable', 'on');
+    end
+
+    function ecgBrSecRowFcn(hObj,~,hSliderECGbr,hTxtECGTime)
+        secPrRow = getFloatVal(hObj);
+        set(hObj, 'Enable', 'off');
+        drawnow;
+        set(hObj, 'Enable', 'on');
+        if ~isempty(secPrRow) && secPrRow >= 1
+            rangeEndIndex.ECG = round(rangeStartIndex.ECG + (secPrRow*gS.ecgBrowserNumRows)*C3.ecg.fs) - 1;
+            [rangeStartIndex, rangeEndIndex] = setRangeEcgBr(rangeStartIndex, rangeEndIndex, C3);
+            % setting the seconds-per-row value (string), in case range had to be restricted
+            hObj.String = sprintf('%.1f',((rangeEndIndex.ECG-rangeStartIndex.ECG+1)/gS.ecgBrowserNumRows)/C3.ecg.fs);
+            ecgBrSetSlider(C3,rangeStartIndex,rangeEndIndex,hSliderECGbr);
+            plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+        end
+        if ~isempty(secPrRow) && secPrRow < 1
+            warndlg('Please enter a value greater than 1');
+        end
+    end
 
     function ecgWinFunc(varargin)
         %--- creates a new, floating window for the ECG plot ---%
@@ -5160,6 +5558,37 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         end
     end
 
+    function keyFcnECGbrowser(~,e,hSliderECGbr,hEcgBrBtnGrp,hEcgBrBtn1,hEcgBrBtn2,hEcgBrBtn3,hTxtECGTime)
+        switch(e.Key)
+            case {'rightarrow','downarrow'}
+                ecgRange = rangeEndIndex.ECG - rangeStartIndex.ECG;
+                rangeStartIndex.ECG = rangeStartIndex.ECG + ecgRange;
+                rangeEndIndex.ECG = rangeEndIndex.ECG + ecgRange;
+                [rangeStartIndex, rangeEndIndex] = setRangeEcgBr(rangeStartIndex, rangeEndIndex, C3);
+                ecgBrSetSlider(C3,rangeStartIndex,rangeEndIndex,hSliderECGbr);
+                plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+            case {'leftarrow','uparrow'}
+                ecgRange = rangeEndIndex.ECG - rangeStartIndex.ECG;
+                rangeStartIndex.ECG = rangeStartIndex.ECG - ecgRange;
+                rangeEndIndex.ECG = rangeEndIndex.ECG - ecgRange;
+                [rangeStartIndex, rangeEndIndex] = setRangeEcgBr(rangeStartIndex, rangeEndIndex, C3);
+                ecgBrSetSlider(C3,rangeStartIndex,rangeEndIndex,hSliderECGbr);
+                plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+            case {'1','numpad1'}
+                set(hEcgBrBtnGrp,'selectedobject',hEcgBrBtn1);
+                gS.ecgBrowserCh = 1;
+                plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+            case {'2','numpad2'}
+                set(hEcgBrBtnGrp,'selectedobject',hEcgBrBtn2);
+                gS.ecgBrowserCh = 2;
+                plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+            case {'3','numpad3'}
+                set(hEcgBrBtnGrp,'selectedobject',hEcgBrBtn3);
+                gS.ecgBrowserCh = 3;
+                plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+        end
+    end
+
     function resizeFcn(varargin)
         % Is called when the GUI window is created, and when resized.
         % Might be used later to implement changing font size depending on
@@ -5174,9 +5603,63 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         fclose all;
         closereq; % Close the GUI Window
     end
+
+    function ecgBrCloseReqFcn(hObj,~)
+        delete(hObj);
+        % update main GUI to display the same range as was just displayed in the ECG Browser
+        rangeStartIndex.Accel = round(rangeStartIndex.ECG/sampleRateFactor.ECG);
+        rangeEndIndex.Accel = round(rangeEndIndex.ECG/sampleRateFactor.ECG);
+        [startIdx, endIdx] = setRangeWithinBounds(rangeStartIndex.Accel, rangeEndIndex.Accel, C3.accel.samplenum);
+        rangeStartIndex.Accel = startIdx;
+        rangeEndIndex.Accel = endIdx;
+        rangeStartIndex.Temp = floor((rangeStartIndex.Accel - 1) * sampleRateFactor.Temp) + 1;
+        rangeEndIndex.Temp = min(length(C3.temp.data), round(rangeEndIndex.Accel * sampleRateFactor.Temp));
+        rangeStartIndex.ECG = ((rangeStartIndex.Accel - 1) * sampleRateFactor.ECG) + 1;
+        rangeEndIndex.ECG = min(length(C3.ecg.data), rangeEndIndex.Accel * sampleRateFactor.ECG);
+        rangeStartIndex.Resp = ((rangeStartIndex.Accel - 1) * sampleRateFactor.Resp) + 1;
+        rangeEndIndex.Resp = min(length(C3.resp.data), rangeEndIndex.Accel * sampleRateFactor.Resp);
+        % update range info text, and plot range
+        setRangeSlider(C3,rangeStartIndex,rangeEndIndex,hRangeSlider);
+        setRangeInfo(xAxisTimeStamps,timeBase,rangeStartIndex,rangeEndIndex,hTextTimeDisplayed);
+        if rangeStartIndex.Accel == 1 && rangeEndIndex.Accel == length(C3.accel.data)
+            hResetButton.Enable = 'off';
+            hRangeSlider.Enable = 'off';
+        else
+            hResetButton.Enable = 'on';
+            hRangeSlider.Enable = 'on';
+        end
+        plotSensorData;
+    end
+
 end
 
 %% Functions (Work in progress... moving inline functions outside of main function.)
+
+function plotEcgBrowser(C3,startIdx,endIdx,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS)
+% fprintf('%f %f\n',startIdx,endIdx);
+    % How many samples pr axis
+    gS.ecgBrowserNumRows = length(hAxECGbrowser);
+    smplsPrAx = floor((endIdx - startIdx) / gS.ecgBrowserNumRows);
+    % Get timestamps
+    xAxisTimeStamp = getTimeStamps(xAxisTimeStamps,timeBase,'ECG');
+    % Plot
+    axStartIdx = startIdx;
+    axEndIdx = axStartIdx + smplsPrAx;
+    for ii=1:gS.ecgBrowserNumRows
+        cla(hAxECGbrowser(ii));
+        hAxECGbrowser(ii).XLim = [axStartIdx axEndIdx];
+        plot(hAxECGbrowser(ii),axStartIdx:axEndIdx,C3.ecg.data(axStartIdx:axEndIdx,gS.ecgBrowserCh),'Color',gS.colors.col{gS.ecgBrowserCh},'LineWidth',0.5);
+        axStartIdx = axEndIdx;
+        axEndIdx = axStartIdx + smplsPrAx;
+    end
+    if strcmp(timeBase,'World')
+        hTxtECGTime.String = [datestr(xAxisTimeStamp(startIdx), 'yyyy-mm-dd     HH:MM:SS') ' ' char(8211) ' ' datestr(xAxisTimeStamp(endIdx), 'HH:MM:SS')];
+    else
+        [h,m,s] = hms([xAxisTimeStamp(startIdx) xAxisTimeStamp(endIdx)]);
+        hTxtECGTime.String = [sprintf('%02i:%02i:%02i',h(1),m(1),floor(s(1))) ' ' char(8211) ' ' sprintf('%02i:%02i:%02i',h(2),m(2),floor(s(2)))];
+    end
+end
+
 function plotReportMarkers(startIdx,endIdx,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS)
     cla(hAxesECGMarkers);
     if ~isempty(reportIOmarkers)
@@ -5673,7 +6156,7 @@ if strcmp(timeBase,'World')
     elseif strcmp(signalName,'Temp')
         [Y,M,D,h,m,s] = datevec([xAxisTimeStamps.world.Temp(rangeStartIndex) xAxisTimeStamps.world.Temp(rangeEndIndex)]);
     end
-    rangeStr = sprintf('%04d%02d%02dT%02d%02d%02d-%04d%02d%02dT%02d%02d%02d',Y(1),M(1),D(1),h(1),m(1),round(s(1)),Y(2),M(2),D(2),h(2),m(2),round(s(2)));
+    rangeStr = sprintf('%04d%02d%02dT%02d%02d%02d-%04d%02d%02dT%02d%02d%02d',Y(1),M(1),D(1),h(1),m(1),floor(s(1)),Y(2),M(2),D(2),h(2),m(2),floor(s(2)));
 else
     if strcmp(signalName,'ECG')
         [h,m,s] = hms([xAxisTimeStamps.duration.ECG(rangeStartIndex) xAxisTimeStamps.duration.ECG(rangeEndIndex)]);
@@ -5684,7 +6167,7 @@ else
     elseif strcmp(signalName,'Temp')
         [h,m,s] = hms([xAxisTimeStamps.duration.Temp(rangeStartIndex) xAxisTimeStamps.duration.Temp(rangeEndIndex)]);
     end
-    rangeStr = [sprintf('%02ih%02im%02is',h(1),m(1),round(s(1))) '-' sprintf('%02ih%02im%02is',h(2),m(2),round(s(2)))];
+    rangeStr = [sprintf('%02ih%02im%02is',h(1),m(1),floor(s(1))) '-' sprintf('%02ih%02im%02is',h(2),m(2),floor(s(2)))];
 end
 %     fprintf('rangeStr = %s\n',rangeStr);
 end
@@ -5736,7 +6219,7 @@ end
 end
 
 function fileFormat = getFileFormat(hFileFormatButtonGroup)
-fileFormat = get(get(hFileFormatButtonGroup,'selectedobject'),'String');
+    fileFormat = get(get(hFileFormatButtonGroup,'selectedobject'),'String');
 end
 
 function timeBase = getTimeBase(hTimebaseButtonGroup,hLabelTimeDisplayed)
@@ -5768,15 +6251,30 @@ rangeEndIndex.Resp = min(length(C3.resp.data), rangeEndIndex.Accel * sampleRateF
 %             fprintf('Temp start: %d  end: %d\n',rangeStartIndex.Temp,rangeEndIndex.Temp);
 end
 
+% Function for setting range in ECG Browser
+function [rangeStartIndex, rangeEndIndex] = setRangeEcgBr(rangeStartIndex, rangeEndIndex, C3)
+    [startIdx, endIdx] = setRangeWithinBounds(rangeStartIndex.ECG, rangeEndIndex.ECG, C3.ecg.samplenum);
+    rangeStartIndex.ECG = startIdx;
+    rangeEndIndex.ECG = endIdx;
+    % Keeping the other indices as they are. Will be updated in ECG Browser closereq function.
+    rangeStartIndex.Accel = rangeStartIndex.Accel;
+    rangeEndIndex.Accel = rangeEndIndex.Accel;
+    rangeStartIndex.Temp = rangeStartIndex.Temp ;
+    rangeEndIndex.Temp = rangeEndIndex.Temp;
+    rangeStartIndex.Resp = rangeStartIndex.Resp;
+    rangeEndIndex.Resp = rangeEndIndex.Resp;
+end
+
 function [startIdx, endIdx] = setRangeWithinBounds(startIdx, endIdx, numSamples)
-if startIdx < 1
-    endIdx = endIdx + abs(startIdx) + 1;
-    startIdx = 1;
-end
-if endIdx > numSamples
-    startIdx = startIdx - (endIdx - numSamples);
-    endIdx = endIdx - (endIdx - numSamples);
-end
+    idxRange = endIdx - startIdx;
+    if startIdx < 1
+        startIdx = 1;
+        endIdx = 1 + idxRange;
+    end
+    if endIdx > numSamples
+        startIdx = max(1,(numSamples - idxRange));
+        endIdx = min(numSamples,(startIdx + idxRange));
+    end
 end
 
 function ecgIndex = setEcgIndexWithinBounds(C3,ecgIndex)
@@ -5900,6 +6398,32 @@ if sliderVal < hRangeSlider.Min
     sliderVal = hRangeSlider.Min;
 end
 hRangeSlider.Value = sliderVal;
+end
+
+function ecgBrSetSlider(C3,rangeStartIndex,rangeEndIndex,hSliderECGbr)
+    currentRange = (rangeEndIndex.ECG - rangeStartIndex.ECG + 1);
+    if currentRange ~= length(C3.ecg.data)
+        halfRange = round(currentRange * 0.5);
+        hSliderECGbr.Min = halfRange;
+        hSliderECGbr.Max = C3.ecg.samplenum - halfRange;
+        minorstep = max(0.0000011, currentRange/double(C3.ecg.samplenum)); % slider minorstep must be > 0.000001
+        majorstep = minorstep * 10;
+        hSliderECGbr.SliderStep = [minorstep majorstep];
+        sliderVal = rangeStartIndex.ECG + halfRange;
+        if sliderVal > hSliderECGbr.Max
+            sliderVal = hSliderECGbr.Max;
+        end
+        if sliderVal < hSliderECGbr.Min
+            sliderVal = hSliderECGbr.Min;
+        end
+        hSliderECGbr.Value = sliderVal;
+    else
+        hSliderECGbr.Min = 1;
+        hSliderECGbr.Max = C3.ecg.samplenum;
+        hSliderECGbr.SliderStep = [1 10000];
+        hSliderECGbr.Value = 1;
+    end
+%     fprintf('SET: Slider min: %d  max: %d  val: %d   minStep: %f  maxStep: %f\n',hSliderECGbr.Min, hSliderECGbr.Max, hSliderECGbr.Value, hSliderECGbr.SliderStep(1), hSliderECGbr.SliderStep(2));
 end
 
 function [eventECG_rowIdx, eventECG_colIdx] = getECGeventIndex(C3,rangeStartIdx,rangeEndIdx,hPopupEvent,searchDir)
@@ -7422,11 +7946,13 @@ end
 
 %function for trimming number of events displayed from the BLE-file (only 24bit)
 function eventIndices = trimEvents(eventIndices, sampleRateFactor)
-    % Minimum difference between events, in seconds
-    minDiffSecs = 3;
-    % First event should always be accepted, hence the '[true;' part, which
-    % also makes the length of the diff array match the length of the array being diff'ed.
-    eventIndices = eventIndices([true; diff(eventIndices) > (250/sampleRateFactor.ECG)*minDiffSecs]);
+    if ~isempty(eventIndices)
+        % Minimum difference between events, in seconds
+        minDiffSecs = 3;
+        % First event should always be accepted, hence the '[true;' part, which
+        % also makes the length of the diff array match the length of the array being diff'ed.
+        eventIndices = eventIndices([true; diff(eventIndices) > (250/sampleRateFactor.ECG)*minDiffSecs]);
+    end
 end
 
 %function called when loading new sensor data. Fills jsondata.events into eventMarkers.
@@ -7695,7 +8221,12 @@ function floatVal = getFloatVal(hEdit)
             floatVal = str2double(hEdit.String);
         end
     else
-        warndlg('Numerical input is required!');
+        floatVal = [];
+        if ~all(ismember(hEdit.String, '1234567890.,-'))
+            warndlg(sprintf('Numerical input is required!'));
+        elseif sum(ismember(hEdit.String, ',')) > 0
+            warndlg(sprintf('Please use . (dot) for decimal mark.'));
+        end
     end
 end
 
@@ -7774,14 +8305,23 @@ function unitsPerMv = getUnitsPerMillivolt(jsondata,fileFormat)
     % from 0.3.0.0 and higher provides 24bit ECG data.
     if ~isempty(jsondata) && isfield(jsondata,'softwareversion')
         FWstr = strrep(jsondata.softwareversion,'.','');
-        FWnum = str2double(FWstr);
-        if ~isnan(FWnum) && FWnum >= 300
-            unitsPerMv = 20971.52;
-        else
-            unitsPerMv = 5243.0;
+        FWstr = strrep(FWstr,'E','');
+        if ~isempty(FWstr) && all(ismember(FWstr, '1234567890'))
+            FWnum = str2double(FWstr);
+            if ~isnan(FWnum) && FWnum >= 300
+                unitsPerMv = 20971.52;
+            else
+                unitsPerMv = 5243.0;
+            end
+        else % if jsondata.softwareversion does not come out as a number 
+            if strcmp(fileFormat,'BLE 24bit')
+                unitsPerMv = 20971.52;
+            % default 16bit
+            else
+                unitsPerMv = 5243.0;
+            end
         end
-    % if no JSON data is present, determine units per millivolt by file format
-    elseif strcmp(fileFormat,'BLE 24bit')
+    elseif strcmp(fileFormat,'BLE 24bit') % if no JSON data is present, determine units per millivolt by file format
         unitsPerMv = 20971.52;
     % default 16bit
     else
@@ -8328,4 +8868,21 @@ function gS = deselectSegSelDragMode(hButtonSegSelDrag,gS,panelColor)
     hButtonSegSelDrag.Value = 0;
     hButtonSegSelDrag.BackgroundColor = panelColor;
     gS.segAnnMode = 'none';
+end
+
+function ecgBrSaveImg(hECGbrowser,ecgBrChStr,xAxisTimeStamps,timeBase,startIndex,endIndex,full_path)
+    [file_path,file_name,file_ext] = fileparts(full_path);
+    image_path = fullfile(file_path,'Images - ECG Browser');
+    if ~exist(image_path,'dir')
+        [status,message,~] = mkdir(image_path);
+    else
+        status = true;
+    end
+    if status
+        timeRangeStr = getRangeStrForFileName(xAxisTimeStamps,timeBase,startIndex,endIndex,'ECG');
+        image_fullpath = fullfile(image_path,[file_name file_ext ' ' ecgBrChStr ' ' char(timeRangeStr) '.png']);
+        print(hECGbrowser,image_fullpath,'-dpng','-r0');
+    else
+        warndlg(sprintf('Could not create folder ''Images - ECG Browser'' for image!\n\n%s',message));
+    end
 end

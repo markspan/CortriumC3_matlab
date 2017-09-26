@@ -8429,36 +8429,11 @@ function clearStrings(varargin)
 end
 
 function unitsPerMv = getUnitsPerMillivolt(conf,fileFormat)
-    % C3 ecg data is 5243 units pr millivolt, for 16bit,
-    % and 20971.52 units pr millivolt, for 24bit at gain 6.
-<<<<<<< HEAD
+    % C3 ecg data is 3495.253 units pr millivolt, for 24bit at gain 1,
+    % and 5243 units pr millivolt, for 16bit.
     if ~isempty(conf) && strcmp(fileFormat,'BLE 24bit')
         c3ecgGain = c3_getEcgGain(conf);
         unitsPerMv = c3_getUnitsPerMillivolt(fileFormat,c3ecgGain);
-=======
-    % It is assumed that firmwareversion (called "softwareversion" in JSON)
-    % from 0.3.0.0 and higher provides 24bit ECG data.
-    if ~isempty(jsondata) && isfield(jsondata,'softwareversion')
-        FWstr = strrep(jsondata.softwareversion,'.','');
-        FWstr = strrep(FWstr,'E','');
-        if ~isempty(FWstr) && all(ismember(FWstr, '1234567890'))
-            FWnum = str2double(FWstr);
-            if ~isnan(FWnum) && FWnum >= 300
-                unitsPerMv = 20971.52;
-            else
-                unitsPerMv = 5243.0;
-            end
-        else % if jsondata.softwareversion does not come out as a number 
-            if strcmp(fileFormat,'BLE 24bit')
-                unitsPerMv = 20971.52;
-            % default 16bit
-            else
-                unitsPerMv = 5243.0;
-            end
-        end
-    elseif strcmp(fileFormat,'BLE 24bit') % if no JSON data is present, determine units per millivolt by file format
-        unitsPerMv = 20971.52;
->>>>>>> origin/development
     % default 16bit
     else
         unitsPerMv = 5243.0;

@@ -98,11 +98,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
         return;
     end
 
-<<<<<<< HEAD
     % determine which parts are available in this file
-=======
-    % find out which parts are available in this file
->>>>>>> origin/development
     conf_bin = dec2bin(conf,8); % conf, in binary form
     respAvailable = (conf_bin(end) == '1');
     ecg1Available = (conf_bin(end-1) == '1');
@@ -121,11 +117,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
         [~,ble_name,ble_ext] = fileparts(ble_fullpath);
         LengthOfRecondingInSeconds = batchesInFile/(250/6);
         [h,m,s] = hms(seconds(LengthOfRecondingInSeconds));
-<<<<<<< HEAD
         fprintf('\n=================================================================\n');
-=======
-        fprintf('\n=======================================================\n');
->>>>>>> origin/development
         fprintf('File: %s\nSize: %d bytes, (%f megabytes)\n', [ble_name,ble_ext], fileInfo.bytes, fileInfo.bytes/1024/1024);
         fprintf('Duration: %02d:%02d:%02.0f (hours:mins:secs)\n',h, m, s);
         fprintf('valid conf assumed at file pos: %d bytes\n',posForValidConf);
@@ -143,11 +135,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
                 fprintf('recordingLengthConf: %d\n',recordingLengthConf);
             end
         end
-<<<<<<< HEAD
         fprintf('=================================================================\n');
-=======
-        fprintf('=======================================================\n');
->>>>>>> origin/development
     end
 
     % PART 1, MISC, MANDATORY PAYLOAD

@@ -10,46 +10,65 @@
 % int16     acc_y;
 % int16     acc_z;
 % uint16    temp_ambient_object; % temp_ambient and temp_object alternate in every second (modulus 2) batch
-% uint16    serial_ADS;
+% uint8     serial_ADS;
+% uint8     eventCounter % incremented when button on C3 is pressed (only since C3 B7 model)
 % uint8     bat_level_and_status; % bat_level and bat_status, packed into bitmask
-% bit24     resp; % 24 bit, signed, respiration sample
-% int8      leadoff;
-% uint8     conf;       % bitmask indicating which (if any) of the RESP, ECG1, ECG2, ECG3 parts appear after Part 1. This configuration never changes within the current BLE file.
+% bit24     resp;       % 24 bit, signed, respiration sample
+% int8      leadoff;    % value indicates whether electrodes (leads) have electrical connection or not. leadoff == 0 means all leads are on.
+% uint8     conf;       % bitmask indicating gain level, and which (if any) of the RESP, ECG1, ECG2, ECG3 parts appear after Part 1. This configuration never changes within the current BLE file.
 
 % The remaining 3 parts are optional, but if present, each part contains
-% an uint16 serial, and 6 samples of 24bit ECG data.
+% a uint16 serial, and 6 samples of 24bit ECG data.
 
 function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp, ecg, ecg_serials] = c3_read_ble_24bit(ble_fullpath)
     hTic = tic;
-    debug = false; verbose = true;
+    verbose = true;
 
     serialNumber = []; conf = []; serial_ADS = []; eventCounter = []; leadoff = [];
     acc = []; temp = []; resp = []; ecg = []; ecg1 = []; ecg2 = []; ecg3 = [];
     ecg_serials = []; ecg1_serial = []; ecg2_serial = []; ecg3_serial = [];
 
     fid = fopen(ble_fullpath,'r');
+    fileInfo = dir(ble_fullpath);
     
     fseek(fid, 0, 'bof');
-    ble_description_chars = fread(fid, 6, '*char')';
+    bleDescription = fread(fid, 6, '*char')';
     idx7Char = fread(fid, 1, '*char')';
-    if strcmp('BLE-C3',ble_description_chars) && idx7Char == char(0)
+    if strcmp('BLE-C3',bleDescription) && char(idx7Char) == char(0)
         hasHeader = true;
     else
         hasHeader = false;
     end
+    
     if hasHeader
         fileFormatVersion = fread(fid, 2, '*char')';
-        fseek(fid, 10, 'bof');
-        deviceID = fread(fid, 15, '*char')';
-        fseek(fid, 26, 'bof');
-        fwVersion = fread(fid, 12, '*char')';
-        fseek(fid, 39, 'bof');
-        hwVersion = fread(fid, 7, '*char')';
-        fseek(fid, 47, 'bof');
-        companySpecific = fread(fid, 1, '*uint8')';
-        miscOffset = 48;
-        if companySpecific
-            errordlg('This BLE-file is encrypted! Unable to read.','File Error','modal');
+        if strcmp('BLE-C3',bleDescription) && strcmp('01',fileFormatVersion)
+            fseek(fid, 10, 'bof');
+            deviceID = fread(fid, 15, '*char')';
+            fseek(fid, 26, 'bof');
+            fwVersion = fread(fid, 12, '*char')';
+            fseek(fid, 39, 'bof');
+            hwVersion = fread(fid, 7, '*char')';
+            fseek(fid, 47, 'bof');
+            companySpecific = fread(fid, 1, '*uint8')';
+            miscOffset = 48;
+        elseif strcmp('BLE-C3',bleDescription) && strcmp('02',fileFormatVersion)
+            fseek(fid, 10, 'bof');
+            deviceID = fread(fid, 15, '*char')';
+            fseek(fid, 26, 'bof');
+            fwVersion = fread(fid, 12, '*char')';
+            fseek(fid, 39, 'bof');
+            hwVersion = fread(fid, 7, '*char')';
+            fseek(fid, 47, 'bof');
+            confFromHeader = fread(fid, 1, '*uint8');
+            fseek(fid, 51, 'bof');
+            recordingLengthConf = fread(fid, 1, '*uint32');
+            fseek(fid, 55, 'bof');
+            companySpecific = fread(fid, 1, '*uint8')';
+            miscOffset = 56;
+        end
+        if cast(companySpecific,'logical')
+            errordlg('This BLE-file is encrypted! Unable to read.','Error Reading File','modal');
             return;
         end
     else
@@ -66,7 +85,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
             % now get the conf
             fseek(fid, 15, 'cof'); % go to  position for a possible conf
             posForValidConf = ftell(fid);
-            valid_conf = fread(fid, 1, '*uint8');
+            conf = fread(fid, 1, '*uint8');
             first_valid_serial = tempSerialNumber;
             break;
         end
@@ -75,40 +94,61 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
         fseek(fid, 16, 'cof');
     end
     
-    if tempSerialNumber <= 0
+    if tempSerialNumber == 0
         return;
     end
 
+<<<<<<< HEAD
+    % determine which parts are available in this file
+=======
     % find out which parts are available in this file
-    conf_bin = dec2bin(valid_conf,8); % conf, in binary form
+>>>>>>> origin/development
+    conf_bin = dec2bin(conf,8); % conf, in binary form
     respAvailable = (conf_bin(end) == '1');
     ecg1Available = (conf_bin(end-1) == '1');
     ecg2Available = (conf_bin(end-2) == '1');
     ecg3Available = (conf_bin(end-3) == '1');
     % dec2hex for debugging purposes
-    conf_hex = dec2hex(valid_conf);
+    conf_hex = dec2hex(conf);
     
+    numBatches = Inf; % Batches to read. 'Inf' = read all batches
+    batchSize = 20 + ((ecg1Available + ecg2Available + ecg3Available) * 20); % how many bytes a batch contains, depends on how many sensor signals were included
+    fileSizeMinusHeader = fileInfo.bytes - miscOffset;
+    batchesInFile = fileSizeMinusHeader/batchSize;
+
     if verbose
         % Display info about recording start time and duration, output to console
         [~,ble_name,ble_ext] = fileparts(ble_fullpath);
-        fileInfo = dir(ble_fullpath);
+        LengthOfRecondingInSeconds = batchesInFile/(250/6);
+        [h,m,s] = hms(seconds(LengthOfRecondingInSeconds));
+<<<<<<< HEAD
+        fprintf('\n=================================================================\n');
+=======
         fprintf('\n=======================================================\n');
+>>>>>>> origin/development
         fprintf('File: %s\nSize: %d bytes, (%f megabytes)\n', [ble_name,ble_ext], fileInfo.bytes, fileInfo.bytes/1024/1024);
+        fprintf('Duration: %02d:%02d:%02.0f (hours:mins:secs)\n',h, m, s);
         fprintf('valid conf assumed at file pos: %d bytes\n',posForValidConf);
-        fprintf('Conf DEC: %d     Conf BIN: %s    Conf HEX: %s\n',valid_conf,conf_bin,conf_hex);
+        fprintf('Conf DEC: %d     Conf BIN: %s    Conf HEX: %s\n',conf,conf_bin,conf_hex);
         if hasHeader
             fprintf('Header: ');
-            fprintf('%s, ',ble_description_chars);
+            fprintf('%s, ',bleDescription);
             fprintf('file ver: %s, ',fileFormatVersion);
             fprintf('deviceID: %s, ',deviceID);
             fprintf('FW ver: %s, ',deblank(fwVersion));
             fprintf('HW ver: %s, ',deblank(hwVersion));
             fprintf('comp. specific: %d\n',companySpecific);
+            if strcmp('BLE-C3',bleDescription) && strcmp('02',fileFormatVersion)
+                fprintf('confFromHeader DEC: %d     BIN: %s     HEX: %s\n',confFromHeader,dec2bin(confFromHeader,8),dec2hex(confFromHeader));
+                fprintf('recordingLengthConf: %d\n',recordingLengthConf);
+            end
         end
+<<<<<<< HEAD
+        fprintf('=================================================================\n');
+=======
+        fprintf('=======================================================\n');
+>>>>>>> origin/development
     end
-
-    numBatches = Inf; % 'Inf' = read all batches
-    batchSize = 20 + ((ecg1Available + ecg2Available + ecg3Available) * 20); % how many bytes a batch contains, depends on how many sensor signals were included
 
     % PART 1, MISC, MANDATORY PAYLOAD
     % set the file pointer to the start of the first MISC part
@@ -132,28 +172,18 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
     if respAvailable
         fseek(fid, filePos+15, 'bof'); % rewind
         resp = fread(fid, numBatches, 'bit24', (batchSize*8)-24); % when using bitn, 'skip' argument must be specified in bits, not bytes
-    else
-        resp = [];
     end
     fseek(fid, filePos+18, 'bof'); % rewind
     leadoff = fread(fid, numBatches, '*uint8', batchSize-1);  
-    fseek(fid, filePos+19, 'bof'); % rewind
-    conf = fread(fid, numBatches, '*uint8', batchSize-1);
+    % valid conf should not change throughout the file (and is already found), so reading will be skipped
+%     fseek(fid, filePos+19, 'bof'); % rewind
+%     conf = fread(fid, numBatches, '*uint8', batchSize-1);
     
-    if verbose
-        % WARNING: USING THE FILENAME AS AN 8-DIGIT HEX TIMESTAMP - RENAMED FILES BREAKS THIS
-    %     recordingStartTime = datetime(hex2dec(ble_name), 'ConvertFrom', 'posixtime', 'TimeZone', 'local');%'Europe/Zurich'
-        LengthOfRecondingInSeconds = length(serialNumber) * 0.024;
-        [h,m,s] = hms(seconds(LengthOfRecondingInSeconds));
-        fprintf('Duration: %02d:%02d:%02.0f (hours:mins:secs)\n',h, m, s);
-        fprintf('=======================================================\n');
-    end
-   
     % PART 2, ECG_1
     if ecg1Available
         filePos = miscOffset + (ecg1Available * 20);
         fseek(fid, filePos, 'bof');
-        ecg1_serial = fread(fid, numBatches, 'uint16', batchSize-2);
+        ecg1_serial = fread(fid, numBatches, '*uint16', batchSize-2);
         fseek(fid, filePos+2, 'bof');
         ecg1_s1 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
         fseek(fid, filePos+5, 'bof');
@@ -174,7 +204,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
     if ecg2Available
         filePos = miscOffset + ((ecg1Available + ecg2Available) * 20);
         fseek(fid, filePos, 'bof');
-        ecg2_serial = fread(fid, numBatches, 'uint16', batchSize-2);
+        ecg2_serial = fread(fid, numBatches, '*uint16', batchSize-2);
         fseek(fid, filePos+2, 'bof');
         ecg2_s1 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
         fseek(fid, filePos+5, 'bof');
@@ -195,7 +225,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
     if ecg3Available
         filePos = miscOffset + ((ecg1Available + ecg2Available + ecg3Available) * 20);
         fseek(fid, filePos, 'bof');
-        ecg3_serial = fread(fid, numBatches, 'uint16', batchSize-2);
+        ecg3_serial = fread(fid, numBatches, '*uint16', batchSize-2);
         fseek(fid, filePos+2, 'bof');
         ecg3_s1 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
         fseek(fid, filePos+5, 'bof');
@@ -213,21 +243,13 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
     end
     fclose(fid);
     
-    % Split temp into ambient and object
-    % ambient when  (serial % 2 ==0) and object when (serial % 2 == 1) ambient
-    
-    if debug
-        % For debugging using bat_adc
-        disp('DEBUGGIING SET IN read_ble_24bit.m');
-        figure;plot(bat_adc);
-        table(unique(bat_adc), histc(bat_adc(:),unique(bat_adc)), round(double(histc(bat_adc(:),unique(bat_adc))./double(length(bat_adc)))*100), 'VariableNames',{'bat_adc' 'Count' 'Percent'})
-    end
-    
     % Scale accel to g-force
     acc_x = acc_x * 0.00006103515625;
     acc_y = acc_y * 0.00006103515625;
     acc_z = acc_z * 0.00006103515625;
-    
+    % Scaling temp to Celsius
+    temp_amb_obj(temp_amb_obj ~= 0) = (temp_amb_obj(temp_amb_obj ~= 0) * 0.02) - 273.15;
+
     % find indices of missed batches
     missedBatches = find(serialNumber == 0);
     % set ecg, resp, accel, and temp data in missed batches to 'NaN'
@@ -246,21 +268,19 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
         endOfMissed_ecg_resp = missedBatches*6;
         idx = coloncat(startOfMissed_ecg_resp, endOfMissed_ecg_resp);
         if ~isempty(ecg1)
-            ecg1(idx) = -32768; % NaN or -32768 for Comm error
+            ecg1(idx) = 0; % NaN or -32768 for Comm error
         end
         if ~isempty(ecg2)
-            ecg2(idx) = -32768; % NaN or -32768 for Comm error
+            ecg2(idx) = 0; % NaN or -32768 for Comm error
         end
         if ~isempty(ecg3)
-            ecg3(idx) = -32768; % NaN or -32768 for Comm error
+            ecg3(idx) = 0; % NaN or -32768 for Comm error
         end
     end
     
-    % Scaling temp to Celsius
-    temp_amb_obj(temp_amb_obj ~= 0) = (temp_amb_obj(temp_amb_obj ~= 0) * 0.02) - 273.15;
     % Splitting temp into temp_ambient and tenp_object.
     % temp_ambient is stored in batches where mod(serialNumber,2) == 0.
-    batchesBeforeFirstValidSerial = (posForValidConf - 19) / batchSize;
+    batchesBeforeFirstValidSerial = (posForValidConf - 19 - miscOffset) / batchSize;
     serialOfFirstBatch = first_valid_serial - batchesBeforeFirstValidSerial;
     if mod(serialOfFirstBatch,2) == 0
         temp_ambient = temp_amb_obj(2:2:end);

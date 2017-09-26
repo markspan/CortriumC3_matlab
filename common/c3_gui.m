@@ -7,14 +7,14 @@ hTic_buildingGUI = tic;
 % Root path to Cortrium Matlab scripts
 cortrium_matlab_scripts_root_path = getCortriumScriptsRoot;
 bin_path = fullfile(cortrium_matlab_scripts_root_path,'bin');
-    
+
 % create new C3 object, empty until a sensor data directory has been selected
 C3 = cortrium_c3('');
 jsondata = struct([]);
 jsondata_class_segment = struct([]);
 reportIOmarkers = struct([]);
 eventMarkers = struct([]);
-segAnns = struct([]);
+rhytmAnns = struct([]);
 pathName = '';
 partialPathStr = '';
 sourceName = '';
@@ -24,6 +24,7 @@ json_fullpath = '';
 jsondata_class_fullpath = '';
 classification_fullpath = '';
 last_path = '';
+conf = [];
 % cS, a struct for ECGkit classification results
 cS = struct([]);
 % qrsAnn, a cell array for QRS annotations
@@ -31,7 +32,7 @@ qrsAnn = cell(0);
 % gS, a struct to keep track of various options in the GUI, such as whether to flip ecg channels, etc.
 gS = struct('dataLoaded',false,...
             'flipEcg1',false,...
-            'flipEcg2',false,...
+            'flipEcg2',false,...initialize
             'flipEcg3',false,...
             'ecgMarkerMode',false,...
             'ecgMarkerDisplay',false,...
@@ -39,13 +40,13 @@ gS = struct('dataLoaded',false,...
             'eventMarkerMode',false,...
             'eventMarkerDisplay',false,...
             'classAnnDragSel',false,...
-            'segAnnMode','none',...
-            'segAnnECGInSet',false,...
-            'segAnnRespInSet',false,...
-            'segAnnAccelInSet',false,...
-            'segAnnDispECG',false,...
-            'segAnnDispResp',false,...
-            'segAnnDispAccel',false,...
+            'rhythmAnnMode','none',...
+            'rhythmAnnECGInSet',false,...
+            'rhythmAnnRespInSet',false,...
+            'rhythmAnnAccelInSet',false,...
+            'rhythmAnnDispECG',false,...
+            'rhythmAnnDispResp',false,...
+            'rhythmAnnDispAccel',false,...
             'ecgBrowserCh',1,...
             'ecgBrowserNumRows',6,...
             'ecgBrowserYminmV',-0.75,...
@@ -114,6 +115,7 @@ ibims = []; ibiDiffms = []; qrsAnnIndices = []; stdIBISegments = [];
 ibiSegmentSampleNums = [];
 
 hAxECGbrowser = gobjects(6,1);
+hAxAnnECGbrowser = gobjects(6,1);
 
 %% GUI
 
@@ -123,7 +125,7 @@ hAxECGbrowser = gobjects(6,1);
 % Create GUI window, visibility is turned off while the GUI elements are added
 hFig = figure('Name','Cortrium C3 sensor data',...
     'Numbertitle','off',...
-    'OuterPosition', [1 1 screenWidth screenHeight],...
+    'OuterPosition', [1 1 screenWidth-1 screenHeight-1],...
     'MenuBar', 'figure',...
     'Toolbar','none',...
     'Visible','off',...
@@ -2206,46 +2208,46 @@ hStdSearchRight = uicontrol('Parent',hPanelStdSearch,...
     'FontSize',12,...
     'Callback',@stdSearchFcn);
 
-%% -----Panel: Segment Annotation-----
+%% -----Panel: Rhythm Annotation-----
 
-% create a parent panel for Segment Annotation
-hPanelParentECGsegAnn = uipanel('Parent',hPanelMain,...
+% create a parent panel for Rhythm Annotation
+hPanelParentECGrhythmAnn = uipanel('Parent',hPanelMain,...
     'Visible','off',...
     'BorderType','none',...
     'Units','normalized',...
     'Position',[0.84 0.01 0.15 0.5],...
     'BackgroundColor',panelColor);
 
-% create a panel related to Segment Annotation
-hPanelECGsegAnn = uipanel('Parent',hPanelParentECGsegAnn,...
-    'Title','Segment Annotation',...
+% create a panel related to Rhythm Annotation
+hPanelECGrhythmAnn = uipanel('Parent',hPanelParentECGrhythmAnn,...
+    'Title','Rhythm Annotation',...
     'BorderType','line',... %
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
     'Position',[0 0 1 1],...
     'BackgroundColor',panelColor);
 
-% Sub-panel for Display of Segment Annotations
-hPanelSegAnnDisp = uipanel('Parent',hPanelECGsegAnn,...
-    'Title','Display segment annotations',...
+% Sub-panel for Display of Rhythm Annotations
+hPanelRhytmAnnDisp = uipanel('Parent',hPanelECGrhythmAnn,...
+    'Title','Display rhythm annotations',...
     'BorderType','etchedin',... %
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
     'Position',[0.05 0.91 0.9 0.08],...
     'BackgroundColor',panelColor);
 
-% Checkbox, Display ECG segment annotations
-hECGsegAnnCheckbox = uicontrol('Parent',hPanelSegAnnDisp,...
+% Checkbox, Display ECG rhythm annotations
+hECGrhythmAnnCheckbox = uicontrol('Parent',hPanelRhytmAnnDisp,...
     'Style','checkbox',...
     'Units','normalized',...
     'Position',[0.02,0.08,0.3,0.9],...
-    'Value',0,...
+    'Value',1,...
     'String','ECG',...
     'Enable','on',...
     'BackgroundColor',panelColor,...
-    'Callback',@ecgSegAnnShowFcn);
+    'Callback',@ecgrhytmAnnshowFcn);
 
-hRespSegAnnCheckbox = uicontrol('Parent',hPanelSegAnnDisp,...
+hRespRhytmAnnCheckbox = uicontrol('Parent',hPanelRhytmAnnDisp,...
     'Style','checkbox',...
     'Units','normalized',...
     'Position',[0.35,0.08,0.3,0.9],...
@@ -2253,9 +2255,9 @@ hRespSegAnnCheckbox = uicontrol('Parent',hPanelSegAnnDisp,...
     'String','Resp',...
     'Enable','off',...
     'BackgroundColor',panelColor,...
-    'Callback',@respSegAnnShowFcn);
+    'Callback',@resprhytmAnnshowFcn);
 
-hAccelSegAnnCheckbox = uicontrol('Parent',hPanelSegAnnDisp,...
+hAccelRhytmAnnCheckbox = uicontrol('Parent',hPanelRhytmAnnDisp,...
     'Style','checkbox',...
     'Units','normalized',...
     'Position',[0.68,0.08,0.3,0.9],...
@@ -2263,57 +2265,37 @@ hAccelSegAnnCheckbox = uicontrol('Parent',hPanelSegAnnDisp,...
     'String','Accel',...
     'Enable','off',...
     'BackgroundColor',panelColor,...
-    'Callback',@accelSegAnnShowFcn);
+    'Callback',@accelrhytmAnnshowFcn);
 
-% Sub-panel for Display of Segment Annotations
-hPanelSegSelM1 = uipanel('Parent',hPanelECGsegAnn,...
-    'Title','Drag-select to add new annotation',...
+% Sub-panel 
+hPanelRhythmSelM2 = uipanel('Parent',hPanelECGrhythmAnn,...
+    'Title','Turn on rhythm annotation mode',...
     'BorderType','etchedin',... %
     'HighlightColor',panelBorderColor,...
     'Units','normalized',...
     'Position',[0.05 0.76 0.9 0.14],...
     'BackgroundColor',panelColor);
 
-% Button, Drag-Select
-hButtonSegSelDrag = uicontrol('Parent',hPanelSegSelM1,...
-    'Style','togglebutton',...
-    'Units','normalized',...
-    'Position',[0.02,0.1,0.96,0.8],...
-    'String','Method: Drag',...
-    'FontSize',10,...
-    'Value',0,...
-    'Enable','off',...
-    'Callback',@segSelDragFunc);
-
-% Sub-panel for Display of Segment Annotations
-hPanelSegSelM2 = uipanel('Parent',hPanelECGsegAnn,...
-    'Title','Left-click to add new annotation',...
-    'BorderType','etchedin',... %
-    'HighlightColor',panelBorderColor,...
-    'Units','normalized',...
-    'Position',[0.05 0.61 0.9 0.14],...
-    'BackgroundColor',panelColor);
-
 % Button, Set segment in-point
-hButtonSegSelClick = uicontrol('Parent',hPanelSegSelM2,...
+hButtonRhythmSelClick = uicontrol('Parent',hPanelRhythmSelM2,...
     'Style','togglebutton',...
     'Units','normalized',...
     'Position',[0.02,0.1,0.96,0.8],...
-    'String','Method: Click',...
+    'String','Rhythm Annotation Mode',...
     'FontSize',10,...
     'Value',0,...
     'Enable','off',...
-    'Callback',@segSelClickFunc);
+    'Callback',@rhythmAnnClickFunc);
 
-% Button, Load detection
-hButtonSaveSegAnn = uicontrol('Parent',hPanelECGsegAnn,...
+% Button, Save annotations
+hButtonSaveRhytmAnn = uicontrol('Parent',hPanelECGrhythmAnn,...
     'Style','pushbutton',...
     'Enable','off',...
     'Units','normalized',...
-    'Position',[0.05,0.5,0.9,0.09],...
+    'Position',[0.05,0.66,0.9,0.09],...
     'String','Save Annotations',...
     'FontSize',12,...
-    'Callback',@segAnnSaveFunc);
+    'Callback',@rhytmAnnsaveFunc);
 
 
 %% -----Panel: Miscellaneous Plots-----
@@ -2725,7 +2707,7 @@ hButtonExportECGtoKubios = uicontrol('Parent',hPanelECGKubiosexport,...
 
 %% -----Popup menu, for selecting functionality panels-----
 
-hParentPanels = [hPanelParentFiltering,hPanelParentEventAnnotation,hPanelParentECGkitAnalysis,hPanelParentECGkitResults,hPanelParentQRS,hPanelParentIBI,hPanelParentECGsegAnn,hPanelParentOptionalPlots,hPanelParentExport];
+hParentPanels = [hPanelParentFiltering,hPanelParentEventAnnotation,hPanelParentECGkitAnalysis,hPanelParentECGkitResults,hPanelParentQRS,hPanelParentIBI,hPanelParentECGrhythmAnn,hPanelParentOptionalPlots,hPanelParentExport];
 
 % Popup menu, for selecting functionality panels
 hPopupPanel = uicontrol('Parent',hPanelMain,...
@@ -2739,7 +2721,7 @@ hPopupPanel = uicontrol('Parent',hPanelMain,...
                 'ECGkit Results',...
                 'QRS Detection',...
                 'Interbeat Intervals',...
-                'Segment Annotation',...
+                'Rhythm Annotation',...
                 'Miscellaneous Plots',...
                 'Export'},...
     'FontSize',10,...
@@ -2756,17 +2738,17 @@ hPanelSensorDisplay = uipanel('Parent',hPanelMain,...
     'Position',[0.01 0.01 0.82 0.98],...
     'BackgroundColor',panelColor);
 
-% Axes object for ECG segment annotations, behind of ECG axes
+% Axes object for ECG rhythm annotations, behind of ECG axes
 % object, otherwise exact same position.
-hAxesECGsegAnn= axes('Parent',hPanelSensorDisplay,...
+hAxesECGrhythmAnn= axes('Parent',hPanelSensorDisplay,...
     'Position',[0.045,0.785,0.9,0.19]);
-xlim(hAxesECGsegAnn,'manual');
-ylim(hAxesECGsegAnn,'manual');
-hold(hAxesECGsegAnn,'on');
-set(hAxesECGsegAnn,'Xticklabel',[]);
-set(hAxesECGsegAnn,'Yticklabel',[]);
-hAxesECGsegAnn.TickLength = [0 0];
-hAxesECGsegAnn.YLim = [0 1];
+xlim(hAxesECGrhythmAnn,'manual');
+ylim(hAxesECGrhythmAnn,'manual');
+hold(hAxesECGrhythmAnn,'on');
+set(hAxesECGrhythmAnn,'Xticklabel',[]);
+set(hAxesECGrhythmAnn,'Yticklabel',[]);
+hAxesECGrhythmAnn.TickLength = [0 0];
+hAxesECGrhythmAnn.YLim = [0 1];
 
 % Axes object for Event Markers plot, behind of ECG axes
 % object, otherwise exact same position.
@@ -3162,12 +3144,14 @@ uicontrol('Parent',hPanelSensorDisplay,...
 % create a panel for Cortrium logo
 hPanelLogo = uipanel('Parent',hPanelMain,...
     'BorderType','none',... %
-    'Units','normalized',...
-    'Position',[0.766 0.966 0.055 0.031],...
+    'Units','pixels',...
+    'Position',[1 1 125 31],...
     'BackgroundColor',panelColor);
+hPanelLogo.Units = 'normalized';
+hPanelLogo.Position = [0.759 0.965 hPanelLogo.Position(3) hPanelLogo.Position(4)];
 
 % load Cortrium logo image
-logo_cortrium_path = fullfile(bin_path,'Cortrium_logo_w_pod_187x55px.png');
+logo_cortrium_path = fullfile(bin_path,'Cortrium_logo_w_pod_500x124px.png');
 if exist(logo_cortrium_path, 'file') == 2
     [logoCortriumImgData.img, logoCortriumImgData.map, logoCortriumImgData.alpha] = imread(logo_cortrium_path);
 else
@@ -3177,7 +3161,7 @@ end
 
 % create axes object for Cortrium logo image
 if ~isempty(logoCortriumImgData)
-    hAxImg = axes('Parent', hPanelLogo, 'Units', 'normalized', 'Position', [0.01, 0.01, 0.98, 0.98]);
+    hAxImg = axes('Parent', hPanelLogo, 'Units', 'normalized', 'Position', [0, 0, 1, 1]);
     % show the image and set alpha for transparent background
     hImg = imshow(logoCortriumImgData.img, logoCortriumImgData.map, 'InitialMagnification', 'fit', 'Parent', hAxImg);
     hImg.AlphaData = logoCortriumImgData.alpha;
@@ -3189,7 +3173,7 @@ end
 screenSize = get(0,'screensize');
 screenWidth = screenSize(3);
 screenHeight = screenSize(4);
-set(hFig,'Position', [1 1 screenWidth screenHeight]);
+set(hFig,'OuterPosition', [1 1 screenWidth-1 screenHeight-1]);
 
 %% Create context menu for beat class labels
 CM_beatClass = uicontextmenu(hFig);
@@ -3240,13 +3224,13 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     full_path = [pathName fileName];
             end
             % clear axes before displaying new data
-            clearAxes([hAxesECGsegAnn,hAxesEventMarkers,hAxesECGMarkers,hAxesECGkitClass,hAxesQRS,hAxesECG hAxesResp hAxesAccel hAxesTemp]);
+            clearAxes([hAxesECGrhythmAnn,hAxesEventMarkers,hAxesECGMarkers,hAxesECGkitClass,hAxesQRS,hAxesECG hAxesResp hAxesAccel hAxesTemp]);
             drawnow;
             eventAddMarkersOffOnLoad;
             ecgkitAddMarkersOffOnLoad;
             reportIOmarkers = [];
             eventMarkers = [];
-            segAnns = [];
+            rhytmAnns = [];
             hEventListBox.Value = [];
             hECGkitListBox.Value = [];
             if hParentPanels(3).Visible
@@ -3257,8 +3241,8 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             end
             disableButtons(hButtonEventMarkerAddToggle,hButtonECGkitMarkerAddToggle,hButtonECGkitMarkerOut,hButtonECGkitMarkerDel,hButtonECGkitMarkerEdit,hButtonECGkitMarkerSave);
             disableButtons(hButtonSaveECGkitClass,hIBIsearchLeft,hIBIsearchRight,hIBIdiffSearchLeft,hIBIdiffSearchRight,hBtAnalyseSegments,hStdSearchLeft,hStdSearchRight);
-            deselectButtons(hButtonSegSelDrag,hButtonSegSelClick);
-            segSelDragFunc([],[]); segSelClickFunc([],[]);
+            deselectButtons(hButtonRhythmSelClick);
+            rhythmAnnClickFunc([],[]);
             cS = []; qrsAnn = cell(0); ibims = []; ibiDiffms = []; qrsAnnIndices = []; stdIBISegments = []; ibiSegmentSampleNums = [];
             classCountInfoReset(hClassCountN,hClassCountS,hClassCountV,hClassCountF,hClassCountU,hClassCountArtefact);
             gS.dataLoaded = loadAndFormatData;
@@ -3273,7 +3257,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 gS.flipEcg1 = false;
                 gS.flipEcg2 = false;
                 gS.flipEcg3 = false;
-                gS.unitsPrmV = getUnitsPerMillivolt(jsondata,fileFormat);
+                gS.unitsPrmV = getUnitsPerMillivolt(conf,fileFormat);
                 [partialPathStr, sourceName] = updateDirectoryInfo(full_path,jsondata);
                 setRecordingTimeInfo(C3,hTextTimeRecording,hTextDurationRecording);
                 timeBase = getTimeBase(hTimebaseButtonGroup,hLabelTimeDisplayed);
@@ -3290,7 +3274,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     updateEventListbox(hEventListBox,eventMarkers,xAxisTimeStamps,timeBase,hEventListBox.Value);
                 end
                 plotSensorData;
-                enableButtons(hPopupRange,hRangeButton,hButtonDetectQRS,hButtonLoadQRS,hButtonExportECGtoMIT,hButtonExportECGtoCSV,hButtonExportECGtoKubios,hButtonECGkitGenReport,hButtonLoadECGkitClass,hButtonSegSelDrag,hButtonSegSelClick,hButtonSaveSegAnn);
+                enableButtons(hPopupRange,hRangeButton,hButtonDetectQRS,hButtonLoadQRS,hButtonExportECGtoMIT,hButtonExportECGtoCSV,hButtonExportECGtoKubios,hButtonECGkitGenReport,hButtonLoadECGkitClass,hButtonRhythmSelClick,hButtonSaveRhytmAnn);
                 enableButtons(hButtonEventMarkerAddToggle,hButtonEventMarkerDel,hButtonEventMarkerEdit,hButtonEventMarkerSave,hButtonECGkitMarkerAddToggle,hButtonECGkitMarkerOut,hButtonECGkitMarkerDel,hButtonECGkitMarkerEdit,hButtonECGkitMarkerSave);
             end
         end
@@ -3382,6 +3366,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 C3.initializeForBLE16bit;
                 % load and assign data from .BLE file, 16bit version
                 [C3.serialNumber, C3.leadoff, C3.accel.dataRaw, C3.temp.dataRaw, C3.resp.dataRaw, C3.ecg.dataRaw] = c3_read_ble(full_path);
+                conf = [];
                 C3.accel.samplenum = length(C3.accel.dataRaw);
                 C3.temp.samplenum = length(C3.temp.dataRaw);
                 C3.resp.samplenum = length(C3.resp.dataRaw);
@@ -3414,6 +3399,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                     hTic_readFile = tic;
                     % Initialise components and load data from .bin files
                     C3.initialize;
+                    conf = [];
                     C3.leadoff = zeros(1, C3.temp.samplenum);
                     fileName = '*.bin';
                     C3.ecg.dataRaw = C3.ecg.data;
@@ -3499,7 +3485,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         % initialise event markers, report markers, ECG annotations, from JSON
         eventMarkers = initializeEventMarkersFromJson(jsondata,eventMarkers);
         reportIOmarkers = initializeReportIOmarkers(jsondata,reportIOmarkers);
-        segAnns = initializeSegmentAnnotations(jsondata,segAnns);
+        rhytmAnns = loadRhythmAnnotations(C3,full_path,rhytmAnns,hECGrhythmAnnCheckbox);
         fprintf('loadAndFormatData: %f seconds\n',toc(hTic_loadAndFormatData));
     end
 
@@ -3543,7 +3529,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
     function plotSensorData()
-        plotECGsegAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,segAnns,hAxesECGsegAnn,hECGsegAnnCheckbox,gS);
+        plotECGrhythmAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxesECGrhythmAnn,hECGrhythmAnnCheckbox,gS);
         plotEventMarkers(rangeStartIndex.Accel,rangeEndIndex.Accel,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS);
         plotReportMarkers(rangeStartIndex.ECG,rangeEndIndex.ECG,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS);
 %         plotECGkitClass(rangeStartIndex.ECG,rangeEndIndex.ECG,cS,hAxesECGkitClass,hECGkitClassCheckbox,gS,CM_beatClass);
@@ -3571,14 +3557,10 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             elseif gS.dataLoaded && gS.eventMarkerMode
                 [gS,eventMarkers] = addEventMarker(point1(1,1),xAxisTimeStamps,timeBase,gS,eventMarkers,hEventMarkerDescription,hEventListBox,hButtonEventMarkerSave,editColorGreen,sampleRateFactor);
                 plotEventMarkers(rangeStartIndex.Accel,rangeEndIndex.Accel,eventMarkers,hAxesEventMarkers,hEventMarkersCheckbox,hEventListBox,gS);
-            elseif gS.dataLoaded && strcmp(gS.segAnnMode,'click')
+            elseif gS.dataLoaded && strcmp(gS.rhythmAnnMode,'click')
                 if hAx == hAxesECG
-                    [gS,segAnns] = addSegAnnClick(point1(1,1),xAxisTimeStamps,timeBase,gS,segAnns,'ECG',hButtonSegSelClick);
-                    plotECGsegAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,segAnns,hAxesECGsegAnn,hECGsegAnnCheckbox,gS);
-                elseif hAx == hAxesResp
-                    [gS,segAnns] = addSegAnnClick(point1(1,1),xAxisTimeStamps,timeBase,gS,segAnns,'Resp',hButtonSegSelClick);
-                elseif hAx == hAxesAccel
-                    [gS,segAnns] = addSegAnnClick(point1(1,1),xAxisTimeStamps,timeBase,gS,segAnns,'Accel',hButtonSegSelClick);
+                    [gS,rhytmAnns] = addRhythmAnnClick(point1(1,1),xAxisTimeStamps,timeBase,gS,rhytmAnns,'ECG');
+                    plotECGrhythmAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxesECGrhythmAnn,hECGrhythmAnnCheckbox,gS);
                 end
             end
         % if click-and-drag
@@ -3588,16 +3570,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             xMax = max([point1(1,1), point2(1,1)]);
 %             yMin = min([point1(1,2), point2(1,2)]);
 %             yMax = max([point1(1,2), point2(1,2)]);
-            if gS.dataLoaded && strcmp(gS.segAnnMode,'drag')
-                if hAx == hAxesECG
-                    [gS,segAnns] = addSegAnnDrag(xMin,xMax,xAxisTimeStamps,timeBase,gS,segAnns,'ECG',sampleRateFactor);
-                    plotECGsegAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,segAnns,hAxesECGsegAnn,hECGsegAnnCheckbox,gS);
-                elseif hAx == hAxesResp
-                    [gS,segAnns] = addSegAnnDrag(xMin,xMax,xAxisTimeStamps,timeBase,gS,segAnns,'Resp',sampleRateFactor);
-                elseif hAx == hAxesAccel
-                    [gS,segAnns] = addSegAnnDrag(xMin,xMax,xAxisTimeStamps,timeBase,gS,segAnns,'Accel',sampleRateFactor);
-                end
-            elseif gS.classAnnDragSel
+            if gS.classAnnDragSel
                 if hAx == hAxesECG
                     csIdxSel = getClassAnnIdx(xMin,xMax,xAxisTimeStamps,timeBase,cS,sampleRateFactor);
                     choiceClassAnn = dialogAnnClass();
@@ -4025,33 +3998,33 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         end
     end
 
-    function ecgSegAnnShowFcn(~,~)
-        if hECGsegAnnCheckbox.Value == 1
-            gS.segAnnDispECG = true;
-            plotECGsegAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,segAnns,hAxesECGsegAnn,hECGsegAnnCheckbox,gS);
+    function ecgrhytmAnnshowFcn(~,~)
+        if hECGrhythmAnnCheckbox.Value == 1
+            gS.rhythmAnnDispECG = true;
+            plotECGrhythmAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxesECGrhythmAnn,hECGrhythmAnnCheckbox,gS);
         else
-            gS.segAnnDispECG = false;
-            cla(hAxesECGsegAnn);
+            gS.rhythmAnnDispECG = false;
+            cla(hAxesECGrhythmAnn);
         end
     end
 
-    function respSegAnnShowFcn(~,~)
-        if hRespSegAnnCheckbox.Value == 1
-            gS.segAnnDispResp = true;
-%             plotRespSegAnn(rangeStartIndex.Resp,rangeEndIndex.Resp,hAxesRespSegAnn,hRespSegAnnCheckbox,gS);
+    function resprhytmAnnshowFcn(~,~)
+        if hRespRhytmAnnCheckbox.Value == 1
+            gS.rhythmAnnDispResp = true;
+%             plotRespRhytmAnn(rangeStartIndex.Resp,rangeEndIndex.Resp,hAxesRespRhytmAnn,hRespRhytmAnnCheckbox,gS);
         else
-            gS.segAnnDispResp = false;
-%             cla(hAxesRespSegAnn);
+            gS.rhythmAnnDispResp = false;
+%             cla(hAxesRespRhytmAnn);
         end
     end
 
-    function accelSegAnnShowFcn(~,~)
-        if hAccelSegAnnCheckbox.Value == 1
-            gS.segAnnDispAccel = true;
-%             plotAccelSegAnn(rangeStartIndex.Accel,rangeEndIndex.Accel,hAxesAccelSegAnn,hAccelSegAnnCheckbox,gS);
+    function accelrhytmAnnshowFcn(~,~)
+        if hAccelRhytmAnnCheckbox.Value == 1
+            gS.rhythmAnnDispAccel = true;
+%             plotAccelRhytmAnn(rangeStartIndex.Accel,rangeEndIndex.Accel,hAxesAccelRhytmAnn,hAccelRhytmAnnCheckbox,gS);
         else
-            gS.segAnnDispAccel = false;
-%             cla(hAxesAccelSegAnn);
+            gS.rhythmAnnDispAccel = false;
+%             cla(hAxesAccelRhytmAnn);
         end
     end
 
@@ -4060,9 +4033,8 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             gS.classAnnDragSel = true;
             hBtnClassAnnSel.BackgroundColor = editColorGreen;
             % disable other marker and selection modes
-            deselectButtons(hButtonSegSelClick,hButtonSegSelDrag);
-            segSelDragFunc([],[]);
-            segSelClickFunc([],[]);
+            deselectButtons(hButtonRhythmSelClick);
+            rhythmAnnClickFunc([],[]);
             gS = deselectEventMarkerMode(hButtonEventMarkerAddToggle,hEventMarkerDescription,gS,panelColor,editColor);
             [gS,reportIOmarkers] = deselectReportMarkerMode(hButtonECGkitMarkerAddToggle,hECGkitMarkerDescription,hButtonECGkitMarkerOut,hECGkitMarkerOutHrs,hECGkitMarkerOutMin,hECGkitMarkerOutSec,reportIOmarkers,gS,panelColor,editColor);
         else
@@ -4071,104 +4043,56 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         end
     end
 
-    function segSelDragFunc(~,~)
-        if hButtonSegSelDrag.Value == 1
-            if ~hECGsegAnnCheckbox.Value
-                hECGsegAnnCheckbox.Value = 1;
-                ecgSegAnnShowFcn(hECGsegAnnCheckbox,[]);
+    function rhythmAnnClickFunc(~,~)
+        if hButtonRhythmSelClick.Value == 1
+            if ~hECGrhythmAnnCheckbox.Value
+                hECGrhythmAnnCheckbox.Value = 1;
+                ecgrhytmAnnshowFcn(hECGrhythmAnnCheckbox,[]);
             end
-            gS.segAnnMode = 'drag';
-            hButtonSegSelDrag.BackgroundColor = editColorGreen;
-            % Disable other marker and selection modes
-            deselectButtons(hButtonSegSelClick,hBtnClassAnnSel);
-            hButtonSegSelClick.BackgroundColor = panelColor;
-            hButtonSegSelClick.String = 'Method: Click';
-            gS.classAnnDragSel = false;
-            hBtnClassAnnSel.BackgroundColor = panelColor;
-            gS = deselectEventMarkerMode(hButtonEventMarkerAddToggle,hEventMarkerDescription,gS,panelColor,editColor);
-            [gS,reportIOmarkers] = deselectReportMarkerMode(hButtonECGkitMarkerAddToggle,hECGkitMarkerDescription,hButtonECGkitMarkerOut,hECGkitMarkerOutHrs,hECGkitMarkerOutMin,hECGkitMarkerOutSec,reportIOmarkers,gS,panelColor,editColor);
-        else
-            hButtonSegSelDrag.BackgroundColor = panelColor;
-        end
-        if hButtonSegSelDrag.Value == 0 && hButtonSegSelClick.Value == 0
-            gS.segAnnMode = 'none';
-        end
-    end
-
-    function segSelClickFunc(~,~)
-        if hButtonSegSelClick.Value == 1
-            if ~hECGsegAnnCheckbox.Value
-                hECGsegAnnCheckbox.Value = 1;
-                ecgSegAnnShowFcn(hECGsegAnnCheckbox,[]);
-            end
-            gS.segAnnMode = 'click';
-            hButtonSegSelClick.BackgroundColor = editColorGreen;
-            deselectButtons(hButtonSegSelDrag,hBtnClassAnnSel);
-            hButtonSegSelDrag.BackgroundColor = panelColor;
-            hButtonSegSelClick.String = 'Method: Click (Set In-point)';
+            gS.rhythmAnnMode = 'click';
+            hButtonRhythmSelClick.BackgroundColor = editColorGreen;
+            deselectButtons(hBtnClassAnnSel);
+            hButtonRhythmSelClick.String = 'Click plot to set In-point';
             % Disable other marker and selection modes
             gS.classAnnDragSel = false;
             hBtnClassAnnSel.BackgroundColor = panelColor;
             gS = deselectEventMarkerMode(hButtonEventMarkerAddToggle,hEventMarkerDescription,gS,panelColor,editColor);
             [gS,reportIOmarkers] = deselectReportMarkerMode(hButtonECGkitMarkerAddToggle,hECGkitMarkerDescription,hButtonECGkitMarkerOut,hECGkitMarkerOutHrs,hECGkitMarkerOutMin,hECGkitMarkerOutSec,reportIOmarkers,gS,panelColor,editColor);
         else
-            hButtonSegSelClick.BackgroundColor = panelColor;
-            hButtonSegSelClick.String = 'Method: Click';
-            % make sure there's no In-point hanging, when turning off Add-markers mode
-            if gS.segAnnECGInSet
-                segAnns.ecg(end) = [];
-                gS.segAnnECGInSet = false;
-            end
+            hButtonRhythmSelClick.BackgroundColor = panelColor;
+            hButtonRhythmSelClick.String = 'Rhythm Annotation Mode';
         end
-        if hButtonSegSelDrag.Value == 0 && hButtonSegSelClick.Value == 0
-            gS.segAnnMode = 'none';
+        if hButtonRhythmSelClick.Value == 0
+            gS.rhythmAnnMode = 'none';
         end
     end
 
-    function segAnnSaveFunc(~,~)
-        if ~isempty(json_fullpath)
-            if ~isempty(segAnns)
-                % load the JSON again, so any recent saves (e.g. of report markers) are preserved
-                % NOTE, TO DO: implement that jsondata is always updated with
-                % changes applied to eventMarkers, reportIOmarkers, and segAnns.
-                jsondata = loadjson(json_fullpath);
-                % Segment annotations, ECG
-                if isfield(segAnns,'ecg') && size(segAnns.ecg,2) > 0
-                    numAnnsECG = size(segAnns.ecg,2);
-                    jsondata.segmentannotations.ecg = cell(1,numAnnsECG);
-                    for ii=1:numAnnsECG
-                        jsondata.segmentannotations.ecg{1,ii}.ann = segAnns.ecg(ii).ann;
-                        jsondata.segmentannotations.ecg{1,ii}.inindex = segAnns.ecg(ii).inindex;
-                        jsondata.segmentannotations.ecg{1,ii}.outindex = segAnns.ecg(ii).outindex;
-                    end
-                end
-                % Segment annotations, Resp
-                if isfield(segAnns,'resp') && size(segAnns.resp,2) > 0
-                    numAnnsResp = size(segAnns.resp,2);
-                    jsondata.segmentannotations.resp = cell(1,numAnnsResp);
-                    for ii=1:numAnnsResp
-                        jsondata.segmentannotations.resp{1,ii}.ann = segAnns.resp(ii).ann;
-                        jsondata.segmentannotations.resp{1,ii}.inindex = segAnns.resp(ii).inindex;
-                        jsondata.segmentannotations.resp{1,ii}.outindex = segAnns.resp(ii).outindex;
-                    end
-                end
-                % Segment annotations, Accel
-                if isfield(segAnns,'accel') && size(segAnns.accel,2) > 0
-                    numAnnsAccel = size(segAnns.accel,2);
-                    jsondata.segmentannotations.accel = cell(1,numAnnsAccel);
-                    for ii=1:numAnnsAccel
-                        jsondata.segmentannotations.accel{1,ii}.ann = segAnns.accel(ii).ann;
-                        jsondata.segmentannotations.accel{1,ii}.inindex = segAnns.accel(ii).inindex;
-                        jsondata.segmentannotations.accel{1,ii}.outindex = segAnns.accel(ii).outindex;
-                    end
-                end
-                savejson('',jsondata,'FileName',json_fullpath,'ParseLogical',1);
-            else
-                warndlg('No annotations to save.');
-            end
-        else
-            warndlg('No JSON file was loaded! Can not save annotations.');
+    function rhytmAnnsaveFunc(~,~)
+        % overwrite existing .atr-file or create new
+        [file_path,file_name,~] = fileparts(full_path);
+        % wrann needs a .hea-file in order to proceed with writing the .atr-file
+        if exist(fullfile(file_path,[file_name '.hea']), 'file') ~= 2
+            fidHea = fopen(fullfile(file_path,[file_name '.hea']),'w');
+            fprintf(fidHea,'%s %d %d %d\r\n',file_name, 0, C3.ecg.fs, 0);
+            fclose(fidHea);
         end
+        numAnns = length(rhytmAnns.ecg.idx);
+        anntype = char(ones(numAnns,1)*43); % anntype is '+' for rhythm-change annotations, aka char(43)
+        subtype = zeros(numAnns,1); % defaulting subtype to 0
+        chan = zeros(numAnns,1); % defaulting channel to 0
+        num = zeros(numAnns,1); % defaulting num to 0
+        dirOrg = cd(file_path);
+        annSaved = true;
+        try
+            wrann(file_name,'atr',rhytmAnns.ecg.idx,anntype,subtype,chan,num,rhytmAnns.ecg.ann);
+        catch
+            warndlg('Could not save annotation file!','Warning!','modal');
+            annSaved = false;
+        end
+        if annSaved
+            msgbox('Rhythm annotations saved!','Saved','modal');
+        end
+        cd(dirOrg);
     end
 
     function eventsShowMarkersFcn(~,~)
@@ -4200,7 +4124,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hEventMarkerDescription.BackgroundColor = editColorGreen;
             hButtonEventMarkerSave.BackgroundColor = editColorGreen;
             % turn off other selection modes
-            deselectButtons(hButtonSegSelClick,hButtonSegSelDrag,hBtnClassAnnSel);
+            deselectButtons(hButtonRhythmSelClick,hBtnClassAnnSel);
             gS.classAnnDragSel = false;
             hBtnClassAnnSel.BackgroundColor = panelColor;
             % turn other selection and marker modes off
@@ -4210,11 +4134,8 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             if gS.classAnnDragSel
                 gS = deselectClassAnnDragSelMode(hBtnClassAnnSel,gS,panelColor);
             end
-            if strcmp(gS.segAnnMode,'drag')
-                gS = deselectSegSelDragMode(hButtonSegSelDrag,gS,panelColor);
-            end
-            if strcmp(gS.segAnnMode,'click')
-                [gS,segAnns] = deselectSegSelClickMode(hButtonSegSelClick,segAnns,gS,panelColor);
+            if strcmp(gS.rhythmAnnMode,'click')
+                [gS,rhytmAnns] = deselectRhythmSelClickMode(hButtonRhythmSelClick,rhytmAnns,gS,panelColor);
             end
             if ~isempty(jsondata)
                 if ~isfield(jsondata,'events')
@@ -4380,11 +4301,8 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             if gS.classAnnDragSel
                 gS = deselectClassAnnDragSelMode(hBtnClassAnnSel,gS,panelColor);
             end
-            if strcmp(gS.segAnnMode,'drag')
-                gS = deselectSegSelDragMode(hButtonSegSelDrag,gS,panelColor);
-            end
-            if strcmp(gS.segAnnMode,'click')
-                [gS,segAnns] = deselectSegSelClickMode(hButtonSegSelClick,segAnns,gS,panelColor);
+            if strcmp(gS.rhythmAnnMode,'click')
+                [gS,rhytmAnns] = deselectRhythmSelClickMode(hButtonRhythmSelClick,rhytmAnns,gS,panelColor);
             end
             if ~isempty(jsondata)
                 if ~isfield(jsondata,'reportmarkers')
@@ -4511,7 +4429,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
     end
 
     function genECGkitAnalyseFunc(~,~)
-        genECGkitReport(C3,sampleRateFactor,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path,fileFormat,bin_path);
+        genECGkitReport(C3,conf,sampleRateFactor,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path,fileFormat,bin_path);
     end
 
     function ecgkitShowClassFcn(~,~)
@@ -4638,7 +4556,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         else
             rangeStr = 'full';
         end
-        qrsAnn = detectQRS(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hPopupECGch,hPopupQRSdet,full_path,rangeStr,'qrsdetect',fileFormat,jsondata,bin_path);
+        qrsAnn = detectQRS(C3,conf,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hPopupECGch,hPopupQRSdet,full_path,rangeStr,'qrsdetect',fileFormat,jsondata,bin_path);
         disableButtons(hStdSearchLeft,hStdSearchRight);
         hStdMin.String = ''; hStdMean.String = ''; hStdMax.String = '';
         if ~isempty(qrsAnn)
@@ -4950,7 +4868,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         else
             rangeStr = 'full';
         end
-        exportECGtoMITfiles(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hExportEcg1Checkbox,hExportEcg2Checkbox,hExportEcg3Checkbox,full_path,rangeStr,'export',fileFormat,jsondata,bin_path);
+        exportECGtoMITfiles(C3,conf,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hExportEcg1Checkbox,hExportEcg2Checkbox,hExportEcg3Checkbox,full_path,rangeStr,'export',fileFormat,jsondata,bin_path);
     end
 
     function exportECGtoCSVfileFunc(~,~)
@@ -4972,9 +4890,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             % Figure window
             hECGbrowser = figure('Numbertitle','off','Name',...
                 ['ECG   File: ' char(sourceName)],...
-                'OuterPosition', [winXpos winYpos winWidth winHeight],...
+                'Position', [winXpos winYpos winWidth winHeight],...
                 'MenuBar', 'none','Toolbar','none',...
-                'WindowStyle','modal',...
+                'WindowStyle','normal',... %modal
                 'PaperPositionMode','auto',...
                 'Visible','off');
             % Panel for ECG plots
@@ -4999,9 +4917,22 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 hAxECGbrowser(ia).YLim = [gS.ecgBrowserYminmV*gS.unitsPrmV gS.ecgBrowserYmaxmV*gS.unitsPrmV];
                 hAxECGbrowser(ia).FontSize = 8;
             end
-    %         figColor = get(hFig,'Color');
-    %         hAxECGbrowser.XColor = figColor;
-    %         hAxECGbrowser.YColor = figColor;
+            % Axes for annotations, transparent background, layered on top of ECG plot axes.
+            hAxAnnECGbrowser = gobjects(gS.ecgBrowserNumRows,1);
+            for ia=1:gS.ecgBrowserNumRows
+                hAxAnnECGbrowser(ia) = axes('Parent',hPnlECGbrAxes,'Position',[0.02,(1-((ecgAxHeight*ia)+(ecgAxMargin*0.5)+(ecgAxMargin*(ia-1)))),0.96,ecgAxHeight],'Color','none');
+                hold(hAxAnnECGbrowser(ia),'on');
+                xlim(hAxAnnECGbrowser(ia),'manual');
+                ylim(hAxAnnECGbrowser(ia),'manual');
+                set(hAxAnnECGbrowser(ia),'Xticklabel',[]);
+                set(hAxAnnECGbrowser(ia),'Yticklabel',[]);
+                hAxAnnECGbrowser(ia).TickLength = [0 0];
+                hAxAnnECGbrowser(ia).XColor = 'none';
+                hAxAnnECGbrowser(ia).YColor = 'none';
+                hAxAnnECGbrowser(ia).YLim = [0 1];
+                hAxAnnECGbrowser(ia).FontSize = 8;
+            end
+
             % Panel for controls
             hPnlECGbrCtrl = uipanel('Parent',hECGbrowser,...
                 'BorderType','line',...
@@ -5066,11 +4997,30 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hSaveImgECGbr = uicontrol('Parent',hPnlECGbrCtrl,...
                 'Style','pushbutton',...
                 'Units','normalized',...
-                'Position',[0.475,0.55,0.05,0.45],...
+                'Position',[0.225,0.55,0.05,0.45],...
                 'String','Save Image',...
                 'HorizontalAlignment','center',...
                 'FontSize',8,...
                 'BackgroundColor',panelColor);
+            % Button for saving image of ECG Browser
+            hSaveAnnECGbr = uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','pushbutton',...
+                'Units','normalized',...
+                'Position',[0.3,0.55,0.06,0.45],...
+                'String','Save Annotations',...
+                'HorizontalAlignment','center',...
+                'FontSize',8,...
+                'BackgroundColor',panelColor);
+            % Checkmark for displaying rhythm annotations
+            hDispRhytAnnECGbr = uicontrol('Parent',hPnlECGbrCtrl,...
+                'Style','checkbox',...
+                'Units','normalized',...
+                'Position',[0.385,0.55,0.09,0.45],...
+                'String','Display Rhythm Annotations',...
+                'HorizontalAlignment','center',...
+                'FontSize',8,...
+                'BackgroundColor',panelColor,...
+                'Value',1);
             % Popup menu, for selecting number of rows of ECG plot
             hPopRowsECGbr = uicontrol('Parent',hPnlECGbrCtrl,...
                 'Style', 'popup',...
@@ -5175,19 +5125,27 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hECGbrowser.Visible = 'on';
             % Add callback functions for ECG browser window and uicontrols
             % that need to be aware of uicontrols created after their own point of creation.
-            hECGbrowser.KeyPressFcn = {@keyFcnECGbrowser,hSliderECGbr,hEcgBrBtnGrp,hEcgBrBtn1,hEcgBrBtn2,hEcgBrBtn3,hTxtECGTime};
+            hECGbrowser.KeyPressFcn = {@keyFcnECGbrowser,hSliderECGbr,hEcgBrBtnGrp,hEcgBrBtn1,hEcgBrBtn2,hEcgBrBtn3,hTxtECGTime,hDispRhytAnnECGbr};
             hECGbrowser.CloseRequestFcn = @ecgBrCloseReqFcn;
-            hPopRowsECGbr.Callback = {@ecgBrRowsFcn,hPnlECGbrAxes,hEditSecRowECGbr,hSliderECGbr,hTxtECGTime};
+            hPopRowsECGbr.Callback = {@ecgBrRowsFcn,hPnlECGbrAxes,hEditSecRowECGbr,hSliderECGbr,hTxtECGTime,hDispRhytAnnECGbr};
             hEcgBrBtnGrp.SelectionChangedFcn = {@ecgChSelFcn,hTxtECGTime};
             hEditYminECGbr.Callback = {@ecgBrYlimFcn,'min',hEditYmaxECGbr};
             hEditYmaxECGbr.Callback = {@ecgBrYlimFcn,'max',hEditYminECGbr};
             hEditSecRowECGbr.Callback = {@ecgBrSecRowFcn,hSliderECGbr,hTxtECGTime};
-            hSliderECGbr.Callback = {@ecgBrSliderFcn,hTxtECGTime};
+            hSliderECGbr.Callback = {@ecgBrSliderFcn,hTxtECGTime,hDispRhytAnnECGbr};
             hSaveImgECGbr.Callback = {@ecgBrSaveImgFcn,hECGbrowser,hEcgBrBtnGrp};
+            hSaveAnnECGbr.Callback = @rhytmAnnsaveFunc;
+            hDispRhytAnnECGbr.Callback = {@ecgBrDispRhytAnnFcn,hAxAnnECGbrowser};
+            for ia=1:length(hAxAnnECGbrowser)
+                hAxAnnECGbrowser(ia).ButtonDownFcn = {@onClickAxECGbrowser,hAxAnnECGbrowser,hAxECGbrowser,hDispRhytAnnECGbr};
+            end
             ecgBrSetSlider(C3,rangeStartIndex,rangeEndIndex,hSliderECGbr);
             gS.ecgBrowserCh = 1;
             % Plot
             plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+            if hDispRhytAnnECGbr.Value == 1
+                plotEcgBrowserAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxAnnECGbrowser,gS);
+            end
         else
             warndlg('No ECG data to display! Please load data.');
         end
@@ -5202,7 +5160,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         ecgBrSaveImg(hECGbrowser,ecgBrChStr,xAxisTimeStamps,timeBase,rangeStartIndex.ECG,rangeEndIndex.ECG,full_path);
     end
 
-    function ecgBrSliderFcn(hSliderECGbr,~,hTxtECGTime)
+    function ecgBrSliderFcn(hSliderECGbr,~,hTxtECGTime,hDispRhytAnnECGbr)
         currentRange = (rangeEndIndex.ECG - rangeStartIndex.ECG + 1);
         rangeStartIndex.ECG = round(hSliderECGbr.Value - currentRange*0.5);
         rangeEndIndex.ECG = rangeStartIndex.ECG + currentRange - 1;
@@ -5214,10 +5172,12 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         drawnow;
         set(hSliderECGbr, 'Enable', 'on');
         plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
-%         fprintf('FCN: CurRange: %d Slider min: %d  max: %d  val: %d   minStep: %f  maxStep: %f\n',currentRange,hSliderECGbr.Min, hSliderECGbr.Max, hSliderECGbr.Value, hSliderECGbr.SliderStep(1), hSliderECGbr.SliderStep(2));
+        if hDispRhytAnnECGbr.Value
+            plotEcgBrowserAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxAnnECGbrowser,gS)
+        end
     end
 
-    function ecgBrRowsFcn(hObj,~,hPnlECGbrAxes,hEditSecRowECGbr,hSliderECGbr,hTxtECGTime)
+    function ecgBrRowsFcn(hObj,~,hPnlECGbrAxes,hEditSecRowECGbr,hSliderECGbr,hTxtECGTime,hDispRhytAnnECGbr)
         % Create new set of axes for plots
         oldNumRows = gS.ecgBrowserNumRows;
         gS.ecgBrowserNumRows = hObj.Value + 3;
@@ -5225,7 +5185,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         ecgAxHeight = (1/gS.ecgBrowserNumRows) - ecgAxMargin;
         yLimMin = gS.ecgBrowserYminmV*gS.unitsPrmV;
         yLimMax = gS.ecgBrowserYmaxmV*gS.unitsPrmV;
-        delete(hAxECGbrowser);
+        delete([hAxECGbrowser hAxAnnECGbrowser]);
+%         clear hAxECGbrowser; clear hAxAnnECGbrowser;
+        % Create new axes for ECG plots
         hAxECGbrowser = gobjects(gS.ecgBrowserNumRows,1);
         for ia=1:gS.ecgBrowserNumRows
             hAxECGbrowser(ia) = axes('Parent',hPnlECGbrAxes,'Position',[0.02,(1-((ecgAxHeight*ia)+(ecgAxMargin*0.5)+(ecgAxMargin*(ia-1)))),0.96,ecgAxHeight],'Visible','off'); % ,'Visible','off'
@@ -5237,25 +5199,39 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hAxECGbrowser(ia).TickLength = [0.0025 0];
             hAxECGbrowser(ia).FontSize = 8;
         end
-        % hack to bring focus back to figure window
-        set(hObj, 'Enable', 'off');
-        drawnow;
-        set(hObj, 'Enable', 'on');
+        % Create new axes for Annotation plots
+        hAxAnnECGbrowser = gobjects(gS.ecgBrowserNumRows,1);
+        for ia=1:gS.ecgBrowserNumRows
+            hAxAnnECGbrowser(ia) = axes('Parent',hPnlECGbrAxes,'Position',[0.02,(1-((ecgAxHeight*ia)+(ecgAxMargin*0.5)+(ecgAxMargin*(ia-1)))),0.96,ecgAxHeight],'Color','none');
+            hold(hAxAnnECGbrowser(ia),'on');
+            xlim(hAxAnnECGbrowser(ia),'manual');
+            ylim(hAxAnnECGbrowser(ia),'manual');
+            set(hAxAnnECGbrowser(ia),'Xticklabel',[]);
+            set(hAxAnnECGbrowser(ia),'Yticklabel',[]);
+            hAxAnnECGbrowser(ia).TickLength = [0 0];
+            hAxAnnECGbrowser(ia).XColor = 'none';
+            hAxAnnECGbrowser(ia).YColor = 'none';
+            hAxAnnECGbrowser(ia).YLim = [0 1];
+            hAxAnnECGbrowser(ia).FontSize = 8;
+        end
+        % Assigning ButtonDownFcn to annotation axes
+        for ia=1:length(hAxAnnECGbrowser)
+            hAxAnnECGbrowser(ia).ButtonDownFcn = {@onClickAxECGbrowser,hAxAnnECGbrowser,hAxECGbrowser,hDispRhytAnnECGbr};
+        end
+        cor_uiReleaseFocus(hObj);
         rangeEndIndex.ECG = rangeStartIndex.ECG + round(((rangeEndIndex.ECG - rangeStartIndex.ECG)/oldNumRows)*gS.ecgBrowserNumRows);
         [rangeStartIndex, rangeEndIndex] = setRangeEcgBr(rangeStartIndex, rangeEndIndex, C3);
         % setting the seconds-per-row value (string), in case range had to be restricted
         hEditSecRowECGbr.String = sprintf('%.1f',((rangeEndIndex.ECG-rangeStartIndex.ECG+1)/gS.ecgBrowserNumRows)/C3.ecg.fs);
         ecgBrSetSlider(C3,rangeStartIndex,rangeEndIndex,hSliderECGbr);
         plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+        plotEcgBrowserAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxAnnECGbrowser,gS);
     end
 
     function ecgChSelFcn(hObj,~,hTxtECGTime)
         hSubObj = get(hObj,'selectedobject');
         ecgBrChStr = get(hSubObj,'String');
-        % hack to bring focus back to figure window
-        set(hSubObj, 'Enable', 'off');
-        drawnow;
-        set(hSubObj, 'Enable', 'on');
+        cor_uiReleaseFocus(hSubObj);
         switch ecgBrChStr
             case 'ECG1'
                 gS.ecgBrowserCh = 1;
@@ -5277,10 +5253,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             yMaxmV = getFloatVal(hObj);
             yMinmV = getFloatVal(hObj2);
         end
-        % hack to bring focus back to figure window
-        set(hObj, 'Enable', 'off');
-        drawnow;
-        set(hObj, 'Enable', 'on');
+        cor_uiReleaseFocus(hObj);
         if ~isempty(yMinmV) && ~isempty(yMaxmV) && yMinmV < yMaxmV
             gS.ecgBrowserYminmV = yMinmV;
             gS.ecgBrowserYmaxmV = yMaxmV;
@@ -5298,16 +5271,12 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
 
     function ecgBrBgColFcn(hObj,~,hPnlECGbrAxes)
         hPnlECGbrAxes.BackgroundColor = uisetcolor(gS.colors.col{14});
-        set(hObj, 'Enable', 'off');
-        drawnow;
-        set(hObj, 'Enable', 'on');
+        cor_uiReleaseFocus(hObj);
     end
 
     function ecgBrSecRowFcn(hObj,~,hSliderECGbr,hTxtECGTime)
         secPrRow = getFloatVal(hObj);
-        set(hObj, 'Enable', 'off');
-        drawnow;
-        set(hObj, 'Enable', 'on');
+        cor_uiReleaseFocus(hObj);
         if ~isempty(secPrRow) && secPrRow >= 1
             rangeEndIndex.ECG = round(rangeStartIndex.ECG + (secPrRow*gS.ecgBrowserNumRows)*C3.ecg.fs) - 1;
             [rangeStartIndex, rangeEndIndex] = setRangeEcgBr(rangeStartIndex, rangeEndIndex, C3);
@@ -5315,6 +5284,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
             hObj.String = sprintf('%.1f',((rangeEndIndex.ECG-rangeStartIndex.ECG+1)/gS.ecgBrowserNumRows)/C3.ecg.fs);
             ecgBrSetSlider(C3,rangeStartIndex,rangeEndIndex,hSliderECGbr);
             plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+            plotEcgBrowserAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxAnnECGbrowser,gS);
         end
         if ~isempty(secPrRow) && secPrRow < 1
             warndlg('Please enter a value greater than 1');
@@ -5558,7 +5528,7 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
         end
     end
 
-    function keyFcnECGbrowser(~,e,hSliderECGbr,hEcgBrBtnGrp,hEcgBrBtn1,hEcgBrBtn2,hEcgBrBtn3,hTxtECGTime)
+    function keyFcnECGbrowser(~,e,hSliderECGbr,hEcgBrBtnGrp,hEcgBrBtn1,hEcgBrBtn2,hEcgBrBtn3,hTxtECGTime,hDispRhytAnnECGbr)
         switch(e.Key)
             case {'rightarrow','downarrow'}
                 ecgRange = rangeEndIndex.ECG - rangeStartIndex.ECG;
@@ -5567,6 +5537,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 [rangeStartIndex, rangeEndIndex] = setRangeEcgBr(rangeStartIndex, rangeEndIndex, C3);
                 ecgBrSetSlider(C3,rangeStartIndex,rangeEndIndex,hSliderECGbr);
                 plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+                if hDispRhytAnnECGbr.Value
+                    plotEcgBrowserAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxAnnECGbrowser,gS)
+                end
             case {'leftarrow','uparrow'}
                 ecgRange = rangeEndIndex.ECG - rangeStartIndex.ECG;
                 rangeStartIndex.ECG = rangeStartIndex.ECG - ecgRange;
@@ -5574,6 +5547,9 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 [rangeStartIndex, rangeEndIndex] = setRangeEcgBr(rangeStartIndex, rangeEndIndex, C3);
                 ecgBrSetSlider(C3,rangeStartIndex,rangeEndIndex,hSliderECGbr);
                 plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+                if hDispRhytAnnECGbr.Value
+                    plotEcgBrowserAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxAnnECGbrowser,gS)
+                end
             case {'1','numpad1'}
                 set(hEcgBrBtnGrp,'selectedobject',hEcgBrBtn1);
                 gS.ecgBrowserCh = 1;
@@ -5586,6 +5562,42 @@ fprintf('buildingGUI: %f seconds\n',toc(hTic_buildingGUI));
                 set(hEcgBrBtnGrp,'selectedobject',hEcgBrBtn3);
                 gS.ecgBrowserCh = 3;
                 plotEcgBrowser(C3,rangeStartIndex.ECG,rangeEndIndex.ECG,xAxisTimeStamps,timeBase,hAxECGbrowser,hTxtECGTime,gS);
+        end
+    end
+
+    function onClickAxECGbrowser(hObj,e,hAxAnnECGbrowser,hAxECGbrowser,hDispRhytAnnECGbr)
+%         fprintf('\nCliked!');
+        % if it was one of the annotation axes that was clicked
+        if sum(hObj == hAxAnnECGbrowser)
+            % if left-click
+            if e.Button == 1
+                if hDispRhytAnnECGbr.Value == 1
+                    clickPoint = get(hObj,'CurrentPoint');
+                    ecgSampleClick = round(clickPoint(1,1));
+                    % cap click point value to within axis limits
+                    ecgSampleClick(ecgSampleClick>hObj.XLim(2)) = hObj.XLim(2);
+                    ecgSampleClick(ecgSampleClick<hObj.XLim(1)) = hObj.XLim(1);
+                    [gS,rhytmAnns] = addRhythmAnnClickECGbr(ecgSampleClick,gS,rhytmAnns);
+                    plotEcgBrowserAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxAnnECGbrowser,gS);
+%                     hAnnLine = plot(hObj,[ecgSampleClick ecgSampleClick],hObj.YLim,'LineStyle',':','LineWidth',1.5,'Color',gS.colors.col{4});
+%                     fprintf('\nCliked ECG sample number: %d',ecgSampleClick);
+%                     fprintf('\nAx lim: %d  %d',hObj.XLim);
+                else
+                    uiwait(msgbox(sprintf('Turning on display of annotations!\n\nYou may then click to add annotations.'),'Annotation visibility','modal'));
+                    hDispRhytAnnECGbr.Value = 1;
+                    plotEcgBrowserAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxAnnECGbrowser,gS);
+                end
+            end
+        end
+    end
+
+    function ecgBrDispRhytAnnFcn(hObj,~,hAxAnnECGbrowser)
+        if hObj.Value == 1
+            plotEcgBrowserAnn(rangeStartIndex.ECG,rangeEndIndex.ECG,rhytmAnns,hAxAnnECGbrowser,gS);
+        else
+            for ii=1:length(hAxAnnECGbrowser)
+                cla(hAxAnnECGbrowser(ii));
+            end
         end
     end
 
@@ -5660,6 +5672,46 @@ function plotEcgBrowser(C3,startIdx,endIdx,xAxisTimeStamps,timeBase,hAxECGbrowse
     end
 end
 
+function plotEcgBrowserAnn(startIdx,endIdx,rhytmAnns,hAxAnnECGbrowser,gS)
+    if ~isempty(rhytmAnns)
+        % How many samples pr axis
+        gS.ecgBrowserNumRows = length(hAxAnnECGbrowser);
+        smplsPrAx = floor((endIdx - startIdx) / gS.ecgBrowserNumRows);
+        % Plot
+        axStartIdx = startIdx;
+        axEndIdx = axStartIdx + smplsPrAx;
+        for ii=1:gS.ecgBrowserNumRows
+            cla(hAxAnnECGbrowser(ii));
+            hAxAnnECGbrowser(ii).XLim = [axStartIdx axEndIdx];
+            idxToPlot = find(rhytmAnns.ecg.idx >= axStartIdx & rhytmAnns.ecg.idx <= axEndIdx);
+            if ~isempty(idxToPlot)
+                for jj=1:length(idxToPlot)
+                    plot(hAxAnnECGbrowser(ii),[rhytmAnns.ecg.idx(idxToPlot(jj)) rhytmAnns.ecg.idx(idxToPlot(jj))],[hAxAnnECGbrowser(ii).YLim(1) hAxAnnECGbrowser(ii).YLim(2)],'LineStyle',':','LineWidth',1.5,'Color',gS.colors.col{4});
+                    if rhytmAnns.ecg.ann{idxToPlot(jj)}(end) == ')'
+                        text(rhytmAnns.ecg.idx(idxToPlot(jj)), 0.05, [rhytmAnns.ecg.ann{idxToPlot(jj)} ' '], 'HorizontalAlignment', 'right', 'FontSize', 9, 'FontWeight', 'bold', 'Color', gS.colors.col{4}, 'EdgeColor', 'none', 'Parent', hAxAnnECGbrowser(ii));
+                    else
+                        text(rhytmAnns.ecg.idx(idxToPlot(jj)), 0.05, [' ' rhytmAnns.ecg.ann{idxToPlot(jj)}], 'HorizontalAlignment', 'left', 'FontSize', 9, 'FontWeight', 'bold', 'Color', gS.colors.col{4}, 'EdgeColor', 'none', 'Parent', hAxAnnECGbrowser(ii));
+                    end
+                end
+            end
+            axStartIdx = axEndIdx;
+            axEndIdx = axStartIdx + smplsPrAx;
+        end
+    else
+        gS.ecgBrowserNumRows = length(hAxAnnECGbrowser);
+        smplsPrAx = floor((endIdx - startIdx) / gS.ecgBrowserNumRows);
+        % Plot
+        axStartIdx = startIdx;
+        axEndIdx = axStartIdx + smplsPrAx;
+        for ii=1:gS.ecgBrowserNumRows
+            cla(hAxAnnECGbrowser(ii));
+            hAxAnnECGbrowser(ii).XLim = [axStartIdx axEndIdx];
+            axStartIdx = axEndIdx;
+            axEndIdx = axStartIdx + smplsPrAx;
+        end
+    end
+end
+
 function plotReportMarkers(startIdx,endIdx,reportIOmarkers,hAxesECGMarkers,hAnalysisMarkersCheckbox,hECGkitListBox,gS)
     cla(hAxesECGMarkers);
     if ~isempty(reportIOmarkers)
@@ -5700,51 +5752,26 @@ function plotReportMarkers(startIdx,endIdx,reportIOmarkers,hAxesECGMarkers,hAnal
     end
 end
 
-function plotECGsegAnn(startIdx,endIdx,segAnns,hAxesECGsegAnn,hECGsegAnnCheckbox,gS)
-    cla(hAxesECGsegAnn);
-    if hECGsegAnnCheckbox.Value == 1
-        if ~isempty(segAnns) && isfield(segAnns,'ecg') && size(segAnns.ecg,2) > 0
-            hAxesECGsegAnn.XLim = [startIdx endIdx];
-            % find annotations within displayed range
-%             annIdxBool = ([segAnns.ecg.outindex] >= startIdx & [segAnns.ecg.outindex] <= endIdx) | (startIdx >= [segAnns.ecg.inindex] & endIdx <= [segAnns.ecg.outindex]); 
-%             annIdx = find(annIdxBool);
-%             % plot annotations, color according to label
-%             for ii=1:length(annIdx)
-%                 if strcmp(segAnns.ecg(annIdx(ii)).ann,'Noise')
-%                     annCol = [gS.colors.col{13} 0.2];
-%                 elseif strcmp(segAnns.ecg(annIdx(ii)).ann,'Afib')
-%                     annCol = [gS.colors.col{9} 0.2];
-%                 else
-%                     annCol = [1 1 0 0.2];%gS.colors.col{12};
-%                 end
-%                 rectangle('Position',[segAnns.ecg(annIdx(ii)).inindex 0 (segAnns.ecg(annIdx(ii)).outindex-segAnns.ecg(annIdx(ii)).inindex) 1],'LineStyle','none','FaceColor',annCol,'Parent',hAxesECGsegAnn);
-%                 text(segAnns.ecg(annIdx(ii)).inindex, 0.05, segAnns.ecg(annIdx(ii)).ann, 'HorizontalAlignment', 'left', 'FontSize', 9, 'FontWeight', 'bold', 'Color', gS.colors.col{4}, 'EdgeColor', 'none', 'Parent', hAxesECGsegAnn);%, 'BackgroundColor', annCol, 'Margin', 0.6
-% %                 % Set c to be the text's UIContextMenu
-% %                 hTxt.UIContextMenu = CM_beatClass;
-%                 plot annotations, color according to label
-%             end
-            if gS.segAnnECGInSet
-                numSegAnns = length(segAnns.ecg)-1;
-            else
-                numSegAnns = length(segAnns.ecg);
-            end
-            for ii=1:numSegAnns
-%                 if strcmp(segAnns.ecg(ii).ann,'Noise')
-%                     annCol = [gS.colors.col{13} 0.2];
-%                 elseif strcmp(segAnns.ecg(ii).ann,'Afib')
-%                     annCol = [gS.colors.col{9} 0.2];
-%                 else
-%                     annCol = [1 1 0 0.2];%gS.colors.col{12};
-%                 end
-                annCol = [0 0 0 0.1];
-                rectangle('Position',[segAnns.ecg(ii).inindex 0 (segAnns.ecg(ii).outindex-segAnns.ecg(ii).inindex) 1],'LineStyle','none','FaceColor',annCol,'Parent',hAxesECGsegAnn);
-                if (endIdx-startIdx) < 30001
-                    text(segAnns.ecg(ii).inindex, 0.05, segAnns.ecg(ii).ann, 'HorizontalAlignment', 'left', 'FontSize', 9, 'FontWeight', 'bold', 'Color', gS.colors.col{4}, 'EdgeColor', 'none', 'Parent', hAxesECGsegAnn);%, 'BackgroundColor', annCol, 'Margin', 0.6
+function plotECGrhythmAnn(startIdx,endIdx,rhytmAnns,hAxesECGrhythmAnn,hECGrhythmAnnCheckbox,gS)
+    cla(hAxesECGrhythmAnn);
+    if hECGrhythmAnnCheckbox.Value == 1
+        if ~isempty(rhytmAnns) && isfield(rhytmAnns,'ecg') && ~isempty(rhytmAnns.ecg.ann)
+            hAxesECGrhythmAnn.XLim = [startIdx endIdx];
+            % NOTE: find annotations that are within plot range (remember to
+            % include the annotation (if any) that comes immediately before
+            % the first whose sampleNum is within range!)
+            numRhythmAnns = length(rhytmAnns.ecg.ann);
+            currentSpan = endIdx-startIdx;
+            for ii=1:numRhythmAnns
+                plot(hAxesECGrhythmAnn,[rhytmAnns.ecg.idx(ii) rhytmAnns.ecg.idx(ii)], [0 1],'LineStyle',':','LineWidth',1.5,'Color',gS.colors.col{4});
+                if currentSpan < 75001
+                    if rhytmAnns.ecg.ann{ii}(end) == ')'
+                        text(rhytmAnns.ecg.idx(ii), 0.05, [rhytmAnns.ecg.ann{ii} ' '], 'HorizontalAlignment', 'right', 'FontSize', 9, 'FontWeight', 'bold', 'Color', gS.colors.col{4}, 'EdgeColor', 'none', 'Parent', hAxesECGrhythmAnn);
+                    else
+                        text(rhytmAnns.ecg.idx(ii), 0.05, [' ' rhytmAnns.ecg.ann{ii}], 'HorizontalAlignment', 'left', 'FontSize', 9, 'FontWeight', 'bold', 'Color', gS.colors.col{4}, 'EdgeColor', 'none', 'Parent', hAxesECGrhythmAnn);
+                    end
                 end
-%                 % Set c to be the text's UIContextMenu
-%                 hTxt.UIContextMenu = CM_beatClass;
             end
-%             refreshdata(hAxesECGsegAnn);
         end
     end
 end
@@ -7125,7 +7152,7 @@ function filteredData = filterRespHighpass(C3)
     end
 end
 
-function qrsAnn = detectQRS(C3,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,hPopupECGch,hPopupQRSdet,full_path,rangeStr,contextStr,fileFormat,jsondata,bin_path)
+function qrsAnn = detectQRS(C3,conf,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,hPopupECGch,hPopupQRSdet,full_path,rangeStr,contextStr,fileFormat,jsondata,bin_path)
     [screenWidth, screenHeight] = getScreenSize();
     d = dialog('Position',[round(screenWidth/2)-125 round(screenHeight/2)-25 250 50],'Name','Please wait');
     hDialogTxt = uicontrol('Parent',d,'Style','text','Position',[20 5 210 30],'FontSize',10,'String','Exporting data for QRS detection...');
@@ -7142,7 +7169,7 @@ function qrsAnn = detectQRS(C3,indexStartECG,indexEndECG,xAxisTimeStamps,timeBas
     else
         hEcg1Checkbox.Value = 0; hEcg2Checkbox.Value = 0; hEcg3Checkbox.Value = 1;
     end
-    hea_fullpath = exportECGtoMITfiles(C3,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,hEcg1Checkbox,hEcg2Checkbox,hEcg3Checkbox,full_path,rangeStr,contextStr,fileFormat,jsondata,bin_path);
+    hea_fullpath = exportECGtoMITfiles(C3,conf,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,hEcg1Checkbox,hEcg2Checkbox,hEcg3Checkbox,full_path,rangeStr,contextStr,fileFormat,jsondata,bin_path);
     % Change dir to location of MIT files
     [pathName,recordName,~] = fileparts(hea_fullpath);
     org_path = cd(pathName);
@@ -7324,7 +7351,7 @@ function [ibims, ibiDiffms] = calcIBIstats(C3,qrsAnn,hTxtTotalBeats,hTxtIBImin,h
     hTxtIBIdiffstd.String = num2str(round(nanstd(ibiDiffms)));
 end
 
-function hea_fullpath = exportECGtoMITfiles(C3,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,hEcg1Checkbox,hEcg2Checkbox,hEcg3Checkbox,full_path,rangeStr,contextStr,fileFormat,jsondata,bin_path)
+function hea_fullpath = exportECGtoMITfiles(C3,conf,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,hEcg1Checkbox,hEcg2Checkbox,hEcg3Checkbox,full_path,rangeStr,contextStr,fileFormat,jsondata,bin_path)
     [source_path,filename_wo_extension,file_extension] = fileparts(full_path);
     if strcmp(contextStr,'export')
         exportMainFolderName = 'Export - ECG MIT';
@@ -7395,7 +7422,16 @@ function hea_fullpath = exportECGtoMITfiles(C3,indexStartECG,indexEndECG,xAxisTi
         currentFolder = pwd;
         % change path to export_sub_path, so the .dat and .hea files output by wrsamp.exe will land there
         cd(export_sub_path);
-        physiobank_fullpath = exportECGtoPhysiobankFile(C3,idxMin,idxMax,chNum,export_sub_path,filename_wo_extension,contextStr);
+        physiobank_fullpath = exportECGtoPhysiobankFile(C3,conf,fileFormat,idxMin,idxMax,chNum,export_sub_path,filename_wo_extension,contextStr);
+        % Get units-per-milliVolt
+        if strcmp(fileFormat,'BLE 24bit')
+            % Get units-per-milliVolt. It is now assumed that gain equals 1, when exporting to PhysioBank (for conversion to 16bit MIT format)
+            c3ecgUnitsPerMv = c3_getUnitsPerMillivolt(fileFormat,1);
+        else
+            % assumed to be 16 bit ECG
+            c3ecgUnitsPerMv = c3_getUnitsPerMillivolt(fileFormat,1);
+        end
+        c3ecgUnitsPerMvStr = num2str(round(c3ecgUnitsPerMv));
         % For reference on wrsamp.exe and signal formats, go to:
         % https://www.physionet.org/physiotools/wag/wrsamp-1.htm
         % https://www.physionet.org/physiotools/wag/signal-5.htm
@@ -7407,10 +7443,10 @@ function hea_fullpath = exportECGtoMITfiles(C3,indexStartECG,indexEndECG,xAxisTi
                 % so the format must be forced down to 16bit. 
                 % How wrsamp.exe handles overflow, and what the consequences 
                 % are further down the line, is currently (2016-03-15) unknown.
-                cmd_str = ['"' bin_path filesep 'wrsamp.exe" -F ' num2str(C3.ecg.fs) ' -i "' physiobank_fullpath '" -o "' filename_wo_extension '" -O 16 -G 20972'];
+                cmd_str = ['"' bin_path filesep 'wrsamp.exe" -F ' num2str(C3.ecg.fs) ' -i "' physiobank_fullpath '" -o "' filename_wo_extension '" -O 16 -G ' c3ecgUnitsPerMvStr];
             otherwise
                 % Output format 16, and gain set at 5243 units pr mV
-                cmd_str = ['"' bin_path filesep 'wrsamp.exe" -F ' num2str(C3.ecg.fs) ' -i "' physiobank_fullpath '" -o "' filename_wo_extension '" -O 16 -G 5243'];
+                cmd_str = ['"' bin_path filesep 'wrsamp.exe" -F ' num2str(C3.ecg.fs) ' -i "' physiobank_fullpath '" -o "' filename_wo_extension '" -O 16 -G ' c3ecgUnitsPerMvStr];
         end        
         [cmd_status,~] = system(cmd_str);
         % For 'QRS detection' export a new JSON file with the "start" field reflecting the start time of this segment, 
@@ -7604,7 +7640,19 @@ function kubiosTxt_fullpath = exportECGtoKubios(C3,indexStartECG,indexEndECG,xAx
     msgbox({'Export to Kubios ASCII file completed!' kubiosTxt_fullpath});
 end
 
-function physiobank_fullpath = exportECGtoPhysiobankFile(C3,indexStartECG,indexEndECG,chNum,export_sub_path,filename_wo_extension,contextStr)
+function physiobank_fullpath = exportECGtoPhysiobankFile(C3,conf,fileFormat,indexStartECG,indexEndECG,chNum,export_sub_path,filename_wo_extension,contextStr)
+    if strcmp(fileFormat,'BLE 24bit')
+        % Get gain, so ECG can be scaled to gain 1 in order to avoid 16bit overflow
+        c3ecgGain = c3_getEcgGain(conf);
+    else
+        % assumed to be 16 bit ECG
+        c3ecgGain = 1;
+    end
+    scaleFactor = 1/double(c3ecgGain);
+    c3EcgTempExportData = C3.ecg.data*scaleFactor;
+    % Cap values outside of int16
+    c3EcgTempExportData(c3EcgTempExportData > 32767) = 32767;
+    c3EcgTempExportData(c3EcgTempExportData < -32767) = -32767;
     if strcmp(contextStr,'ecgkit')
         % write a physiobank file for the report script
         physiobank_file_for_report = fullfile(export_sub_path, [filename_wo_extension '_physiobank.txt']);
@@ -7612,7 +7660,7 @@ function physiobank_fullpath = exportECGtoPhysiobankFile(C3,indexStartECG,indexE
         if length(chNum) == 3
             dlmwrite(physiobank_file_for_report, 'MLI MLII MLIII', 'delimiter', '');
             fid = fopen(physiobank_file_for_report,'a');
-            fprintf(fid,'%f %f %f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
+            fprintf(fid,'%.f %.f %.f\n',c3EcgTempExportData(indexStartECG:indexEndECG,chNum)');
         % if 2-channel output
         elseif length(chNum) == 2
             if isempty(find(chNum == 3,1))
@@ -7623,7 +7671,7 @@ function physiobank_fullpath = exportECGtoPhysiobankFile(C3,indexStartECG,indexE
                 dlmwrite(physiobank_file_for_report, 'MLI MLII', 'delimiter', ''); % 'MLII MLIII'
             end
             fid = fopen(physiobank_file_for_report,'a');
-            fprintf(fid,'%f %f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
+            fprintf(fid,'%.f %.f\n',c3EcgTempExportData(indexStartECG:indexEndECG,chNum)');
         % if 1-channel output
         else
             if isempty(find(chNum == 3,1)) && isempty(find(chNum == 2,1))
@@ -7634,17 +7682,17 @@ function physiobank_fullpath = exportECGtoPhysiobankFile(C3,indexStartECG,indexE
                 dlmwrite(physiobank_file_for_report, 'MLI', 'delimiter', ''); % 'MLIII'
             end
             fid = fopen(physiobank_file_for_report,'a');
-            fprintf(fid,'%f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
+            fprintf(fid,'%.f\n',c3EcgTempExportData(indexStartECG:indexEndECG,chNum)');
         end
         fclose(fid);
     end
     % physiobank file for wrsamp.exe conversion to .dat
     if length(chNum) == 3
-        outStr = sprintf('%f %f %f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
+        outStr = sprintf('%.f %.f %.f\n',c3EcgTempExportData(indexStartECG:indexEndECG,chNum)');
     elseif length(chNum) == 2
-        outStr = sprintf('%f %f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
+        outStr = sprintf('%.f %.f\n',c3EcgTempExportData(indexStartECG:indexEndECG,chNum)');
     else
-        outStr = sprintf('%f\n',C3.ecg.data(indexStartECG:indexEndECG,chNum)');
+        outStr = sprintf('%.f\n',c3EcgTempExportData(indexStartECG:indexEndECG,chNum)');
     end
     % replace NaN by hyphen
     outStr = strrep(outStr,'NaN','-');
@@ -7687,61 +7735,134 @@ function csIdxSel = getClassAnnIdx(xMin,xMax,xAxisTimeStamps,timeBase,cS,sampleR
     end
 end
 
-function [gS,segAnns] = addSegAnnClick(timePoint,xAxisTimeStamps,timeBase,gS,segAnns,signalName,hButtonSegSelClick)
+function [gS,rhytmAnns] = addRhythmAnnClick(timePoint,xAxisTimeStamps,timeBase,gS,rhytmAnns,signalName)
     if strcmp(signalName,'ECG')
-%         fprintf('Seg Ann mode: Click.  Axes: %s\n',signalName);
-        if isempty(segAnns)
-        	numSegAnns = 0;
-        elseif ~isempty(segAnns) && isfield(segAnns,'ecg')
-            numSegAnns = size(segAnns.ecg,2);
+        if isempty(rhytmAnns)
+        	numrhytmAnns = 0;
+        elseif ~isempty(rhytmAnns) && isfield(rhytmAnns,'ecg')
+            numrhytmAnns = length(rhytmAnns.ecg.ann);
         else
-            numSegAnns = 0;
+            numrhytmAnns = 0;
         end
         ecgIndex = getEcgIndexPoint(xAxisTimeStamps,timeBase,timePoint);
-        % if open for in-point
-        if ~gS.segAnnECGInSet
-            segAnns.ecg(numSegAnns+1).inindex = ecgIndex;
-            gS.segAnnECGInSet = true;
-            hButtonSegSelClick.String = 'Method: Click (Set Out-point)';
+        if numrhytmAnns == 0
+            precedingRhytmAnn = '';
+            ECGann = dialogAnnECG(precedingRhytmAnn);
+            if ~isempty(ECGann)
+                rhytmAnns.ecg.ann{numrhytmAnns+1} = ECGann;
+                rhytmAnns.ecg.idx(numrhytmAnns+1) = ecgIndex;
+            end
         else
-            if ecgIndex > segAnns.ecg(numSegAnns).inindex
-                segAnns.ecg(numSegAnns).outindex = ecgIndex;
-                gS.segAnnECGInSet = false;
-                ECGann = dialogAnnECG();
-                segAnns.ecg(numSegAnns).ann = ECGann;
-                hButtonSegSelClick.String = 'Method: Click (Set In-point)';
+            % find the annotation (if any) that precedes this point, to offer
+            % a choice to annotate the current point as the end of the
+            % preceding rhythm explicitly, or the beginning of a new rhythm.
+            precedingRhytmIdx = find([rhytmAnns.ecg.idx] <= ecgIndex,1,'last');
+            if ~isempty(precedingRhytmIdx)
+                if precedingRhytmIdx ~= ecgIndex
+                    succedingRhytmIdx = find([rhytmAnns.ecg.idx] > ecgIndex,1);
+                    if ~isempty(succedingRhytmIdx)
+                        succRhythmAnn = rhytmAnns.ecg.ann{succedingRhytmIdx};
+                    else
+                        succRhythmAnn = '-';
+                    end
+                    preRhythmAnn = rhytmAnns.ecg.ann{precedingRhytmIdx};                    
+                    if preRhythmAnn(1) == '(' && succRhythmAnn(end) ~= ')'
+                        ECGann = dialogAnnECG(preRhythmAnn);
+                    elseif preRhythmAnn(1) == '(' && succRhythmAnn(end) == ')'
+                        warndlg(sprintf('A new annotation can not be created in between\na closed set of rhythm annotations, enclosed by ( ).\n\nIn this case:  %s     %s',preRhythmAnn,succRhythmAnn),'Warning','modal');
+                        ECGann = '';
+                    else
+                        precedingRhytmAnn = '';
+                        ECGann = dialogAnnECG(precedingRhytmAnn);
+                    end
+                    if ~isempty(ECGann)
+                        rhytmAnns.ecg.ann{numrhytmAnns+1} = ECGann;
+                        rhytmAnns.ecg.idx(numrhytmAnns+1) = ecgIndex;
+                        % sort the annotation struct
+                        [~,reIdx]=sort([rhytmAnns.ecg.idx]);
+                        rhytmAnns.ecg.idx = rhytmAnns.ecg.idx(reIdx);
+                        rhytmAnns.ecg.ann = rhytmAnns.ecg.ann(reIdx);
+                    end
+                else
+                    warndlg(sprintf('A new annotation can not be created at the exact same point as an existing annotation!\n\nIf you want to edit the existing annotation, then right-click on it.'),'Warning!','modal');
+                end
             else
-                warndlg(sprintf('ECG segment annotation Out-point <= In-point!\nOut-point not set! Please choose another point.'));
+                precedingRhytmAnn = '';
+                ECGann = dialogAnnECG(precedingRhytmAnn);
+                if ~isempty(ECGann)
+                    rhytmAnns.ecg.idx(numrhytmAnns+1) = ecgIndex;
+                    rhytmAnns.ecg.ann{numrhytmAnns+1} = ECGann;
+                    % sort the annotation struct
+                    [~,reIdx]=sort([rhytmAnns.ecg.idx]);
+                    rhytmAnns.ecg.ann = rhytmAnns.ecg.ann(reIdx);
+                    rhytmAnns.ecg.idx = rhytmAnns.ecg.idx(reIdx);
+                end
             end
         end
-    elseif strcmp(signalName,'Resp')
-%         fprintf('Seg Ann mode: Click.  Axes: %s\n',signalName);
-    elseif strcmp(signalName,'Accel')
-%         fprintf('Seg Ann mode: Click.  Axes: %s\n',signalName);
     end
 end
 
-function [gS,segAnns] = addSegAnnDrag(xMin,xMax,xAxisTimeStamps,timeBase,gS,segAnns,signalName,sampleRateFactor)
-    [rangeStartIndex, rangeEndIndex] = getRangeIndices(xAxisTimeStamps,timeBase,xMin,xMax,sampleRateFactor);
-    if strcmp(signalName,'ECG')
-%         fprintf('Seg Ann mode: Drag.  Axes: %s  xMin: %f  xMax: %f\n',signalName,xMin,xMax);
-        if isempty(segAnns)
-        	numSegAnns = 0;
-        elseif ~isempty(segAnns) && isfield(segAnns,'ecg')
-            numSegAnns = size(segAnns.ecg,2);
-        else
-            numSegAnns = 0;
+function [gS,rhytmAnns] = addRhythmAnnClickECGbr(ecgIndex,gS,rhytmAnns)
+    if isempty(rhytmAnns)
+        numrhytmAnns = 0;
+    elseif ~isempty(rhytmAnns) && isfield(rhytmAnns,'ecg')
+        numrhytmAnns = length(rhytmAnns.ecg.ann);
+    else
+        numrhytmAnns = 0;
+    end
+    if numrhytmAnns == 0
+        precedingRhytmAnn = '';
+        ECGann = dialogAnnECG(precedingRhytmAnn);
+        if ~isempty(ECGann)
+            rhytmAnns.ecg.ann{numrhytmAnns+1} = ECGann;
+            rhytmAnns.ecg.idx(numrhytmAnns+1) = ecgIndex;
         end
-%         ecgInIndex = getEcgIndexPoint(xAxisTimeStamps,timeBase,xMin);
-%         ecgOutIndex = getEcgIndexPoint(xAxisTimeStamps,timeBase,xMax);
-        segAnns.ecg(numSegAnns+1).inindex = rangeStartIndex.ECG;
-        segAnns.ecg(numSegAnns+1).outindex = rangeEndIndex.ECG;
-        ECGann = dialogAnnECG();
-        segAnns.ecg(numSegAnns+1).ann = ECGann;
-    elseif strcmp(signalName,'Resp')
-%         fprintf('Seg Ann mode: Drag.  Axes: %s  xMin: %f  xMax: %f\n',signalName,xMin,xMax);
-    elseif strcmp(signalName,'Accel')
-%         fprintf('Seg Ann mode: Drag.  Axes: %s  xMin: %f  xMax: %f\n',signalName,xMin,xMax);
+    else
+        % find the annotation (if any) that precedes this point, to offer
+        % a choice to annotate the current point as the end of the
+        % preceding rhythm explicitly, or the beginning of a new rhythm.
+        precedingRhytmIdx = find([rhytmAnns.ecg.idx] <= ecgIndex,1,'last');
+        if ~isempty(precedingRhytmIdx)
+            if precedingRhytmIdx ~= ecgIndex
+                succedingRhytmIdx = find([rhytmAnns.ecg.idx] > ecgIndex,1);
+                if ~isempty(succedingRhytmIdx)
+                    succRhythmAnn = rhytmAnns.ecg.ann{succedingRhytmIdx};
+                else
+                    succRhythmAnn = '-';
+                end
+                preRhythmAnn = rhytmAnns.ecg.ann{precedingRhytmIdx};                    
+                if preRhythmAnn(1) == '(' && succRhythmAnn(end) ~= ')'
+                    ECGann = dialogAnnECG(preRhythmAnn);
+                elseif preRhythmAnn(1) == '(' && succRhythmAnn(end) == ')'
+                    warndlg(sprintf('A new annotation can not be created in between\na closed set of rhythm annotations, enclosed by ( ).\n\nIn this case:  %s     %s',preRhythmAnn,succRhythmAnn),'Warning','modal');
+                    ECGann = '';
+                else
+                    precedingRhytmAnn = '';
+                    ECGann = dialogAnnECG(precedingRhytmAnn);
+                end
+                if ~isempty(ECGann)
+                    rhytmAnns.ecg.ann{numrhytmAnns+1} = ECGann;
+                    rhytmAnns.ecg.idx(numrhytmAnns+1) = ecgIndex;
+                    % sort the annotation struct
+                    [~,reIdx]=sort([rhytmAnns.ecg.idx]);
+                    rhytmAnns.ecg.idx = rhytmAnns.ecg.idx(reIdx);
+                    rhytmAnns.ecg.ann = rhytmAnns.ecg.ann(reIdx);
+                end
+            else
+                warndlg(sprintf('A new annotation can not be created at the exact same point as an existing annotation!\n\nIf you want to edit the existing annotation, then right-click on it.'),'Warning!','modal');
+            end
+        else
+            precedingRhytmAnn = '';
+            ECGann = dialogAnnECG(precedingRhytmAnn);
+            if ~isempty(ECGann)
+                rhytmAnns.ecg.idx(numrhytmAnns+1) = ecgIndex;
+                rhytmAnns.ecg.ann{numrhytmAnns+1} = ECGann;
+                % sort the annotation struct
+                [~,reIdx]=sort([rhytmAnns.ecg.idx]);
+                rhytmAnns.ecg.ann = rhytmAnns.ecg.ann(reIdx);
+                rhytmAnns.ecg.idx = rhytmAnns.ecg.idx(reIdx);
+            end
+        end
     end
 end
 
@@ -7761,7 +7882,7 @@ function [gS,eventMarkers] = addEventMarker(timePoint,xAxisTimeStamps,timeBase,g
     hButtonEventMarkerSave.BackgroundColor = editColorGreen;
 end
 
-function genECGkitReport(C3,sampleRateFactor,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path,fileFormat,bin_path)
+function genECGkitReport(C3,conf,sampleRateFactor,indexStartECG,indexEndECG,xAxisTimeStamps,timeBase,reportIOmarkers,jsondata,hECGkitListBox,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,hECGkitMakePDFCheckbox,hECGkitOpenPDFCheckbox,full_path,fileFormat,bin_path)
     if hAnalyseEcg1Checkbox.Value == 0 && hAnalyseEcg2Checkbox.Value == 0 && hAnalyseEcg3Checkbox.Value == 0
         warndlg('No ECG channels selected for analysis!')
         return;
@@ -7800,7 +7921,7 @@ function genECGkitReport(C3,sampleRateFactor,indexStartECG,indexEndECG,xAxisTime
     end
     % For every range, export ECG data to MIT-format (.dat, .hea) files, and call the report script.
     for ii=1:size(ecgRanges,1)
-        hea_fullpath = exportECGtoMITfiles(C3,ecgRanges(ii,1),ecgRanges(ii,2),xAxisTimeStamps,timeBase,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,full_path,'displayed','ecgkit',fileFormat,jsondata,bin_path);
+        hea_fullpath = exportECGtoMITfiles(C3,conf,ecgRanges(ii,1),ecgRanges(ii,2),xAxisTimeStamps,timeBase,hAnalyseEcg1Checkbox,hAnalyseEcg2Checkbox,hAnalyseEcg3Checkbox,full_path,'displayed','ecgkit',fileFormat,jsondata,bin_path);
         [tmpPath, tmpName, ~] = fileparts(hea_fullpath);
         % Also export a new JSON file with the "start" field reflecting the
         % the start time of this segment, and a "reportnote" field added.
@@ -7992,29 +8113,38 @@ function reportIOmarkers = initializeReportIOmarkers(jsondata,reportIOmarkers)
     end
 end
 
-function segAnns = initializeSegmentAnnotations(jsondata,segAnns)
-    if isfield(jsondata,'segmentannotations')
-        if isfield(jsondata.segmentannotations,'ecg') && ~isempty(jsondata.segmentannotations.ecg)
-            for ii=1:size(jsondata.segmentannotations.ecg,2)
-                segAnns.ecg(ii).ann = jsondata.segmentannotations.ecg{1,ii}.ann;
-                segAnns.ecg(ii).inindex = jsondata.segmentannotations.ecg{1,ii}.inindex;
-                segAnns.ecg(ii).outindex = jsondata.segmentannotations.ecg{1,ii}.outindex;
-            end
+function rhytmAnns = loadRhythmAnnotations(C3,full_path,rhytmAnns,hECGrhythmAnnCheckbox)
+    [file_path,file_name,~] = fileparts(full_path);
+    % look for .atr file with same name as the .BLE
+    annFileExist = false; heaFileExist = false;
+    if exist(fullfile(file_path,[file_name '.atr']), 'file') == 2
+        annFileExist = true;
+        % rdann needs a .hea-file in order to proceed with reading the .atr-file
+        if exist(fullfile(file_path,[file_name '.hea']), 'file') == 2
+            heaFileExist = true;
         end
-        if isfield(jsondata.segmentannotations,'resp') && ~isempty(jsondata.segmentannotations.resp)
-            for ii=1:size(jsondata.segmentannotations.resp,2)
-                segAnns.resp(ii).ann = jsondata.segmentannotations.resp{1,ii}.ann;
-                segAnns.resp(ii).inindex = jsondata.segmentannotations.resp{1,ii}.inindex;
-                segAnns.resp(ii).outindex = jsondata.segmentannotations.resp{1,ii}.outindex;
-            end
+    end
+    if annFileExist && ~heaFileExist
+        msgbox(sprintf('No header file (.hea) was found to match the annotation file (.atr)\n\nA simplified header file has been created.'),'No header file!','modal');
+        userResponse = 'OK';
+        if strcmp(userResponse,'OK')
+            fidHea = fopen(fullfile(file_path,[file_name '.hea']),'w');
+            fprintf(fidHea,'%s %d %d %d\r\n',file_name, 0, C3.ecg.fs, 0);
+            fclose(fidHea);
+            heaFileExist = true;
         end
-        if isfield(jsondata.segmentannotations,'accel') && ~isempty(jsondata.segmentannotations.accel)
-            for ii=1:size(jsondata.segmentannotations.accel,2)
-                segAnns.accel(ii).ann = jsondata.segmentannotations.accel{1,ii}.ann;
-                segAnns.accel(ii).inindex = jsondata.segmentannotations.accel{1,ii}.inindex;
-                segAnns.accel(ii).outindex = jsondata.segmentannotations.accel{1,ii}.outindex;
-            end
+    end
+    if annFileExist && heaFileExist
+        % now read the annotation file
+        dirOrg = cd(file_path);
+        [ann,~,~,~,~,comments] = rdann(file_name, 'atr');
+        if max(ann) > length(C3.ecg.data)
+            wanrdlg(sprintf('Annotation mismatch!\n\nAnnotations in the .atr-file exceed the length of this recording.\n\nNo annotations were loaded.'),'Warning');
+        else
+            rhytmAnns.ecg.idx = ann;
+            rhytmAnns.ecg.ann = comments;
         end
+        cd(dirOrg);
     end
 end
 
@@ -8298,9 +8428,14 @@ function clearStrings(varargin)
     end
 end
 
-function unitsPerMv = getUnitsPerMillivolt(jsondata,fileFormat)
+function unitsPerMv = getUnitsPerMillivolt(conf,fileFormat)
     % C3 ecg data is 5243 units pr millivolt, for 16bit,
-    % and 20971.52 units pr millivolt, for 24bit.
+    % and 20971.52 units pr millivolt, for 24bit at gain 6.
+<<<<<<< HEAD
+    if ~isempty(conf) && strcmp(fileFormat,'BLE 24bit')
+        c3ecgGain = c3_getEcgGain(conf);
+        unitsPerMv = c3_getUnitsPerMillivolt(fileFormat,c3ecgGain);
+=======
     % It is assumed that firmwareversion (called "softwareversion" in JSON)
     % from 0.3.0.0 and higher provides 24bit ECG data.
     if ~isempty(jsondata) && isfield(jsondata,'softwareversion')
@@ -8323,6 +8458,7 @@ function unitsPerMv = getUnitsPerMillivolt(jsondata,fileFormat)
         end
     elseif strcmp(fileFormat,'BLE 24bit') % if no JSON data is present, determine units per millivolt by file format
         unitsPerMv = 20971.52;
+>>>>>>> origin/development
     % default 16bit
     else
         unitsPerMv = 5243.0;
@@ -8572,166 +8708,242 @@ function classCountInfoReset(hClassCountN,hClassCountS,hClassCountV,hClassCountF
     set(hClassCountArtefact,'String','');
 end
 
-function choiceECGann = dialogAnnECG()
-    choiceECGann = 'No Annotation Selected';
+function choiceECGann = dialogAnnECG(precedingRhytmAnn)
+    choiceECGann = '';
     
     % get screen size
     screenSize = get(0,'screensize');
     screenWidth = screenSize(3);
     screenHeight = screenSize(4);
 
-    dHeight = 320;
-    hDialog = dialog('Position',[screenWidth*0.3 max(screenHeight-400,20) 580 dHeight],...
-        'Name','Select Annotation');
+    dHeight = 427;
+    dWidth = 580;
+    lWidth = dWidth - 20;
+    hDialog = dialog('Position',[screenWidth*0.3 max(screenHeight-dHeight-50,20) dWidth dHeight],...
+        'Name','Select Annotation','WindowStyle','normal'); %,'WindowStyle','normal'
+    
+    numBts = 15;
+    ECGann = cell(1,numBts);
+    annAbrev = cell(1,numBts);
+    
+    % horisontal divider line
+    uicontrol('Parent',hDialog,...
+           'Style','text',...
+           'FontSize',8,...
+           'HorizontalAlignment','left',...
+           'Position',[10 dHeight-22 lWidth 19],...
+           'BackgroundColor',[0.5 0.5 0.5],...
+           'String','');
+       
+    uicontrol('Parent',hDialog,...
+           'Style','text',...
+           'FontSize',10,...
+           'FontWeight','bold',...
+           'HorizontalAlignment','left',...
+           'Position',[13 dHeight-21 160 17],...
+           'BackgroundColor',[0.5 0.5 0.5],...
+           'ForegroundColor',[1 1 1],...
+           'String','End of preceding rhythm');
     
     uicontrol('Parent',hDialog,...
            'Style','text',...
            'FontSize',8,...
            'HorizontalAlignment','left',...
-           'Position',[10 dHeight-30 200 20],...
+           'Position',[185 dHeight-21 370 14],...
+           'BackgroundColor',[0.5 0.5 0.5],...
+           'ForegroundColor',[1 1 1],...
+           'String','Use only if you are not indicating the start of a new rhytm');
+       
+    uicontrol('Parent',hDialog,...
+           'Style','text',...
+           'FontSize',8,...
+           'HorizontalAlignment','right',...
+           'Position',[95 dHeight-68 100 20],...
+           'String','End of:');
+       
+    idx = 1; ECGann{idx} = precedingRhytmAnn;
+    hBtEndPrecRhy = uicontrol('Parent',hDialog,...
+           'Position',[200 dHeight-63 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
+    if isempty(precedingRhytmAnn)
+        hBtEndPrecRhy.Enable = 'off';
+    end
+    
+    % horisontal divider line
+    uicontrol('Parent',hDialog,...
+           'Style','text',...
+           'FontSize',8,...
+           'HorizontalAlignment','left',...
+           'Position',[10 dHeight-108 lWidth 19],...
+           'BackgroundColor',[0.5 0.5 0.5],...
+           'String','');
+       
+    uicontrol('Parent',hDialog,...
+           'Style','text',...
+           'FontSize',10,...
+           'FontWeight','bold',...
+           'HorizontalAlignment','left',...
+           'Position',[13 dHeight-107 lWidth-6 17],...
+           'BackgroundColor',[0.5 0.5 0.5],...
+           'ForegroundColor',[1 1 1],...
+           'String','Start of new rhythm');
+    
+    uicontrol('Parent',hDialog,...
+           'Style','text',...
+           'FontSize',8,...
+           'HorizontalAlignment','left',...
+           'Position',[10 dHeight-137 200 20],...
            'String','Tachycardia');
-    
-    idx = 1; ECGann{idx} = 'Atrial fibrillation';
+
+    idx = idx+1; ECGann{idx} = 'Atrial fibrillation'; annAbrev{idx} = 'AFIB';
     uicontrol('Parent',hDialog,...
-           'Position',[10 dHeight-60 180 30],...
+           'Position',[10 dHeight-167 180 30],...
            'FontSize',10,...
            'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
+
+    idx = idx+1; ECGann{idx} = 'Atrial flutter'; annAbrev{idx} = 'AFL';
+    uicontrol('Parent',hDialog,...
+           'Position',[200 dHeight-167 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
+
+    idx = idx+1; ECGann{idx} = 'Supraventricular tachycardia'; annAbrev{idx} = 'SVTA';
+    uicontrol('Parent',hDialog,...
+           'Position',[390 dHeight-167 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
+
+    idx = idx+1; ECGann{idx} = 'Monomorphic VT'; annAbrev{idx} = 'MVT';
+    uicontrol('Parent',hDialog,...
+           'Position',[10 dHeight-207 180 30],...
+           'FontSize',10,...
+           'String',ECGann{idx},...
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
        
-    idx = idx+1; ECGann{idx} = 'Atrial flutter';
+    idx = idx+1; ECGann{idx} = 'Polymorphic VT'; annAbrev{idx} = 'PVT';
     uicontrol('Parent',hDialog,...
-           'Position',[200 dHeight-60 180 30],...
+           'Position',[200 dHeight-207 180 30],...
            'FontSize',10,...
            'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
        
-    idx = idx+1; ECGann{idx} = 'Supraventricular tachycardia';
+    idx = idx+1; ECGann{idx} = 'Wide-complex tachycardia of uncertain type'; annAbrev{idx} = 'WCTU';
     uicontrol('Parent',hDialog,...
-           'Position',[390 dHeight-60 180 30],...
+           'Position',[390 dHeight-207 180 30],...
            'FontSize',10,...
            'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
-       
-    idx = idx+1; ECGann{idx} = 'Monomorphic VT';
-    uicontrol('Parent',hDialog,...
-           'Position',[10 dHeight-100 180 30],...
-           'FontSize',10,...
-           'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
-       
-    idx = idx+1; ECGann{idx} = 'Polymorphic VT';
-    uicontrol('Parent',hDialog,...
-           'Position',[200 dHeight-100 180 30],...
-           'FontSize',10,...
-           'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
-       
-    idx = idx+1; ECGann{idx} = 'Wide-complex tachycardia of uncertain type';
-    uicontrol('Parent',hDialog,...
-           'Position',[390 dHeight-100 180 30],...
-           'FontSize',10,...
-           'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});      
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});      
        
     uicontrol('Parent',hDialog,...
            'Style','text',...
            'FontSize',8,...
            'HorizontalAlignment','left',...
-           'Position',[10 dHeight-150 200 20],...
+           'Position',[10 dHeight-257 200 20],...
            'String','Bradycardia');
        
-    idx = idx+1; ECGann{idx} = 'Sinus Bradycardia';
+    idx = idx+1; ECGann{idx} = 'Sinus Bradycardia'; annAbrev{idx} = 'SBR';
     uicontrol('Parent',hDialog,...
-           'Position',[10 dHeight-180 180 30],...
+           'Position',[10 dHeight-287 180 30],...
            'FontSize',10,...
            'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
        
-    idx = idx+1; ECGann{idx} = 'First-degree AV block';
+    idx = idx+1; ECGann{idx} = 'First-degree AV block'; annAbrev{idx} = 'BI';
     uicontrol('Parent',hDialog,...
-           'Position',[200 dHeight-180 180 30],...
+           'Position',[200 dHeight-287 180 30],...
            'FontSize',10,...
            'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
 
-    idx = idx+1; ECGann{idx} = 'Second-degree AV block';
+    idx = idx+1; ECGann{idx} = 'Second-degree AV block'; annAbrev{idx} = 'BII';
     uicontrol('Parent',hDialog,...
-           'Position',[390 dHeight-180 180 30],...
+           'Position',[390 dHeight-287 180 30],...
            'FontSize',10,...
            'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
        
-    idx = idx+1; ECGann{idx} = 'Wenckenbach/Mobitz I';
+    idx = idx+1; ECGann{idx} = 'Wenckenbach/Mobitz I'; annAbrev{idx} = 'WEMOI';
     uicontrol('Parent',hDialog,...
-           'Position',[10 dHeight-220 180 30],...
+           'Position',[10 dHeight-327 180 30],...
            'FontSize',10,...
            'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
        
-    idx = idx+1; ECGann{idx} = 'Mobitz II';
+    idx = idx+1; ECGann{idx} = 'Mobitz II'; annAbrev{idx} = 'MOII';
     uicontrol('Parent',hDialog,...
-           'Position',[200 dHeight-220 180 30],...
+           'Position',[200 dHeight-327 180 30],...
            'FontSize',10,...
            'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
 
-    idx = idx+1; ECGann{idx} = '3rd-degree AV block complete block';
+    idx = idx+1; ECGann{idx} = '3rd-degree AV block complete block'; annAbrev{idx} = 'BIII';
     uicontrol('Parent',hDialog,...
-           'Position',[390 dHeight-220 180 30],...
+           'Position',[390 dHeight-327 180 30],...
            'FontSize',10,...
            'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
        
     uicontrol('Parent',hDialog,...
            'Style','text',...
            'FontSize',8,...
            'HorizontalAlignment','left',...
-           'Position',[10 dHeight-270 200 20],...
+           'Position',[10 dHeight-377 200 20],...
            'String','Other');
        
-    idx = idx+1; ECGann{idx} = 'Noise';
+    idx = idx+1; ECGann{idx} = 'Noise'; annAbrev{idx} = 'NOISE';
     uicontrol('Parent',hDialog,...
-           'Position',[10 dHeight-300 180 30],...
+           'Position',[10 dHeight-407 180 30],...
            'FontSize',10,...
            'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
        
     hTxtEdit = uicontrol('Parent',hDialog,...
            'Style','edit',...
            'FontSize',10,...
            'HorizontalAlignment','left',...
            'String','Custom annotation',...
-           'Position',[255 dHeight-300 125 30],...
+           'Position',[255 dHeight-407 125 30],...
            'Callback',@txtEditCallback);
        
     uicontrol('Parent',hDialog,...
-           'Position',[200 dHeight-300 50 30],...
+           'Position',[200 dHeight-407 50 30],...
            'FontSize',10,...
            'String','Use:',...
            'Callback',{@customBtnCallback,hTxtEdit,hDialog});
 
-    idx = idx+1; ECGann{idx} = 'Normal Rhythm';
+    idx = idx+1; ECGann{idx} = 'Normal Rhythm'; annAbrev{idx} = 'N';
     uicontrol('Parent',hDialog,...
-           'Position',[390 dHeight-300 180 30],...
+           'Position',[390 dHeight-407 180 30],...
            'FontSize',10,...
            'String',ECGann{idx},...
-           'Callback',{@btnCallback,ECGann{idx},hDialog});
+           'Callback',{@btnCallback,idx,ECGann{idx},hDialog});
        
     % Wait for hDialog to close before running to completion
     uiwait(hDialog);
    
-    function btnCallback(~,~,annStr,hDialog)
-      choiceECGann = annStr;
-      delete(hDialog);
+    function btnCallback(~,~,idx,annStr,hDialog)
+        if idx == 1
+            annStr(1) = [];
+            annStr = [annStr ')'];
+        else
+            annStr = ['(' annAbrev{idx}];
+        end
+        choiceECGann = annStr;
+        delete(hDialog);
     end
 
     function customBtnCallback(~,~,hTxtEdit,hDialog)
-      choiceECGann = hTxtEdit.String;
+      choiceECGann = ['(' hTxtEdit.String];
       delete(hDialog);
     end
 
     function txtEditCallback(hTxtEdit,~)
-      choiceECGann = hTxtEdit.String;
+      choiceECGann = ['(' hTxtEdit.String];
       delete(hDialog);
     end
 end
@@ -8852,22 +9064,11 @@ function gS = deselectClassAnnDragSelMode(hBtnClassAnnSel,gS,panelColor)
     hBtnClassAnnSel.BackgroundColor = panelColor;
 end
 
-function [gS,segAnns] = deselectSegSelClickMode(hButtonSegSelClick,segAnns,gS,panelColor)
-    hButtonSegSelClick.Value = 0;
-    hButtonSegSelClick.BackgroundColor = panelColor;
-    hButtonSegSelClick.String = 'Method: Click';
-    gS.segAnnMode = 'none';
-    % make sure there's no In-point hanging, when turning off Add-markers mode
-    if gS.segAnnECGInSet
-        segAnns.ecg(end) = [];
-        gS.segAnnECGInSet = false;
-    end
-end
-
-function gS = deselectSegSelDragMode(hButtonSegSelDrag,gS,panelColor)
-    hButtonSegSelDrag.Value = 0;
-    hButtonSegSelDrag.BackgroundColor = panelColor;
-    gS.segAnnMode = 'none';
+function [gS,rhytmAnns] = deselectRhythmSelClickMode(hButtonRhythmSelClick,rhytmAnns,gS,panelColor)
+    hButtonRhythmSelClick.Value = 0;
+    hButtonRhythmSelClick.BackgroundColor = panelColor;
+    hButtonRhythmSelClick.String = 'Rhythm Annotation Mode';
+    gS.rhythmAnnMode = 'none';
 end
 
 function ecgBrSaveImg(hECGbrowser,ecgBrChStr,xAxisTimeStamps,timeBase,startIndex,endIndex,full_path)
@@ -8886,3 +9087,4 @@ function ecgBrSaveImg(hECGbrowser,ecgBrChStr,xAxisTimeStamps,timeBase,startIndex
         warndlg(sprintf('Could not create folder ''Images - ECG Browser'' for image!\n\n%s',message));
     end
 end
+

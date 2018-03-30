@@ -1,5 +1,5 @@
-% Read BLE (Bluetooth Low Energy) files containing Cortrium C3 sensor data.
-% 24bit version, for ECG and RESP data saved with 24bit precision.
+% Read BLE files containing Cortrium C3 sensor data (24bit version).
+% The file is read as uint8, and then reshaped and typecasted.
 
 % The BLE file contains a sequence of batches.
 % Each batch contains up to 4 parts, with 20 bytes in each part.
@@ -22,7 +22,7 @@
 
 function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp, ecg, ecg_serials] = c3_read_ble_24bit(ble_fullpath)
     hTic = tic;
-    verbose = true;
+    verbose = false;
 
     serialNumber = []; conf = []; serial_ADS = []; eventCounter = []; leadoff = [];
     acc = []; temp = []; resp = []; ecg = []; ecg1 = []; ecg2 = []; ecg3 = [];
@@ -75,7 +75,7 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
         miscOffset = 0;
     end
     
-    fseek(fid, 0 + miscOffset, 'bof');
+    fseek(fid, miscOffset, 'bof');
     % FIND THE FIRST VALID SERIAL AND CONF, i.e. serialNumber is NOT zero
     while ~feof(fid)
         tempSerialNumber = fread(fid, 1, '*uint32');
@@ -138,133 +138,208 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
         fprintf('=================================================================\n');
     end
 
-    % PART 1, MISC, MANDATORY PAYLOAD
-    % set the file pointer to the start of the first MISC part
-    filePos = 0 + miscOffset;
+    % All data (except the header) as UINT8
+    filePos = miscOffset;
     fseek(fid, filePos, 'bof');
-    serialNumber = fread(fid, numBatches, '*uint32', batchSize-4);
-    fseek(fid, filePos+4, 'bof'); % rewind
-    acc_x = fread(fid, numBatches, 'int16', batchSize-2);
-    fseek(fid, filePos+6, 'bof'); % rewind
-    acc_y = fread(fid, numBatches, 'int16', batchSize-2);
-    fseek(fid, filePos+8, 'bof'); % rewind
-    acc_z = fread(fid, numBatches, 'int16', batchSize-2);
-    fseek(fid, filePos+10, 'bof'); % rewind
-    temp_amb_obj = fread(fid, numBatches, 'uint16', batchSize-2);
-    fseek(fid, filePos+12, 'bof');
-    serial_ADS = fread(fid, numBatches, '*uint8', batchSize-1);
-    fseek(fid, filePos+13, 'bof');
-    eventCounter = fread(fid, numBatches, '*uint8', batchSize-1);
-    fseek(fid, filePos+14, 'bof'); % rewind
-    bat_level_and_status = fread(fid, numBatches, '*uint8', batchSize-1);
+    uint8data = fread(fid, numBatches, '*uint8');
+
+    % PART 1, MISC, MANDATORY PAYLOAD
+    idx = 1;
+    % Serial Number for each batch
+    serialNumber = zeros(batchesInFile*4,1,'uint8');
+    serialNumber(1:4:end) = uint8data(idx:batchSize:end);
+    serialNumber(2:4:end) = uint8data(idx+1:batchSize:end);
+    serialNumber(3:4:end) = uint8data(idx+2:batchSize:end);
+    serialNumber(4:4:end) = uint8data(idx+3:batchSize:end);
+    serialNumber = typecast(serialNumber,'uint32');
+    % Acceleration
+    % Acc X
+    acc = zeros(batchesInFile*8,3,'uint8');
+    acc(7:8:end,1) = uint8data(idx+4:batchSize:end);
+    acc(8:8:end,1) = uint8data(idx+5:batchSize:end);
+    % Acc Y
+    acc(7:8:end,2) = uint8data(idx+6:batchSize:end);
+    acc(8:8:end,2) = uint8data(idx+7:batchSize:end);
+    % Acc Z
+    acc(7:8:end,3) = uint8data(idx+8:batchSize:end);
+    acc(8:8:end,3) = uint8data(idx+9:batchSize:end);
+    acc = typecast(reshape(acc,[],1),'int64');
+    acc = bitshift(acc,-48);
+    acc = reshape(acc,[],3);
+    acc = double(acc);
+    % Temp
+    temp_amb_obj = zeros(batchesInFile*4,1,'uint8');
+    temp_amb_obj(1:4:end) =  uint8data(idx+10:batchSize:end);
+    temp_amb_obj(2:4:end) =  uint8data(idx+11:batchSize:end);
+    temp_amb_obj = typecast(temp_amb_obj,'uint32');
+    temp_amb_obj = single(temp_amb_obj);
+    % Serial_ADS
+    serial_ADS = uint8data(idx+12:batchSize:end);
+    % Event counter
+    eventCounter = uint8data(idx+13:batchSize:end);
+    % Battery level and status (NOT RETURNED IN OUTPUT ARGUMENTS)
+%     bat_level_and_status = uint8data(idx+14:batchSize:end);
     if respAvailable
-        fseek(fid, filePos+15, 'bof'); % rewind
-        resp = fread(fid, numBatches, 'bit24', (batchSize*8)-24); % when using bitn, 'skip' argument must be specified in bits, not bytes
+        resp = zeros(batchesInFile*8,1,'uint8');
+        resp(6:8:end) =  uint8data(idx+15:batchSize:end);
+        resp(7:8:end) =  uint8data(idx+16:batchSize:end);
+        resp(8:8:end) =  uint8data(idx+17:batchSize:end);
+        resp = typecast(resp,'int64');
+        resp = bitshift(resp,-40);
+        resp = double(resp);
     end
-    fseek(fid, filePos+18, 'bof'); % rewind
-    leadoff = fread(fid, numBatches, '*uint8', batchSize-1);  
-    % valid conf should not change throughout the file (and is already found), so reading will be skipped
+    % Lead off
+    leadoff = uint8data(idx+18:batchSize:end);  
+    % Valid conf should not change throughout the file (and is already found)
 %     fseek(fid, filePos+19, 'bof'); % rewind
 %     conf = fread(fid, numBatches, '*uint8', batchSize-1);
     
     % PART 2, ECG_1
     if ecg1Available
-        filePos = miscOffset + (ecg1Available * 20);
-        fseek(fid, filePos, 'bof');
-        ecg1_serial = fread(fid, numBatches, '*uint16', batchSize-2);
-        fseek(fid, filePos+2, 'bof');
-        ecg1_s1 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+5, 'bof');
-        ecg1_s2 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+8, 'bof');
-        ecg1_s3 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+11, 'bof');
-        ecg1_s4 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+14, 'bof');
-        ecg1_s5 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+17, 'bof');
-        ecg1_s6 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        % reshape
-        ecg1 = reshape([ecg1_s1';ecg1_s2';ecg1_s3';ecg1_s4';ecg1_s5';ecg1_s6'],[],1);
+        idx = (ecg1Available * 20) + 3;
+        % ALL ECG1 samples, pre-allocate memory equivalent to the final representation as type double
+        ecg1 = zeros(8,batchesInFile*6,'uint8');
+        % First Sample of ECG1 from each batch
+        ecg1(6,1:6:end) = uint8data(idx:batchSize:end);
+        ecg1(7,1:6:end) = uint8data(idx+1:batchSize:end);
+        ecg1(8,1:6:end) = uint8data(idx+2:batchSize:end);
+        % Second Sample of ECG1 from each batch
+        ecg1(6,2:6:end) = uint8data(idx+3:batchSize:end);
+        ecg1(7,2:6:end) = uint8data(idx+4:batchSize:end);
+        ecg1(8,2:6:end) = uint8data(idx+5:batchSize:end);
+        % Third Sample of ECG1 from each batch
+        ecg1(6,3:6:end) = uint8data(idx+6:batchSize:end);
+        ecg1(7,3:6:end) = uint8data(idx+7:batchSize:end);
+        ecg1(8,3:6:end) = uint8data(idx+8:batchSize:end);
+        % Fourth Sample of ECG1 from each batch
+        ecg1(6,4:6:end) = uint8data(idx+9:batchSize:end);
+        ecg1(7,4:6:end) = uint8data(idx+10:batchSize:end);
+        ecg1(8,4:6:end) = uint8data(idx+11:batchSize:end);
+        % Fifth Sample of ECG1 from each batch
+        ecg1(6,5:6:end) = uint8data(idx+12:batchSize:end);
+        ecg1(7,5:6:end) = uint8data(idx+13:batchSize:end);
+        ecg1(8,5:6:end) = uint8data(idx+14:batchSize:end);
+        % Sixth Sample of ECG1 from each batch
+        ecg1(6,6:6:end) = uint8data(idx+15:batchSize:end);
+        ecg1(7,6:6:end) = uint8data(idx+16:batchSize:end);
+        ecg1(8,6:6:end) = uint8data(idx+17:batchSize:end);
+        % Reshape and typecast
+        ecg1 = typecast(reshape(ecg1,[],1),'int64');
+        % Bit-shift to get the correct value
+        ecg1 = bitshift(ecg1,-40);
+        ecg1 = double(ecg1);
     end
 
     % PART 3, ECG_2
     if ecg2Available
-        filePos = miscOffset + ((ecg1Available + ecg2Available) * 20);
-        fseek(fid, filePos, 'bof');
-        ecg2_serial = fread(fid, numBatches, '*uint16', batchSize-2);
-        fseek(fid, filePos+2, 'bof');
-        ecg2_s1 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+5, 'bof');
-        ecg2_s2 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+8, 'bof');
-        ecg2_s3 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+11, 'bof');
-        ecg2_s4 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+14, 'bof');
-        ecg2_s5 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+17, 'bof');
-        ecg2_s6 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        % reshape
-        ecg2 = reshape([ecg2_s1';ecg2_s2';ecg2_s3';ecg2_s4';ecg2_s5';ecg2_s6'],[],1);
+        idx = ((ecg1Available + ecg2Available) * 20) + 3;
+        % ALL ecg2 samples, pre-allocate memory equivalent to the final representation as type double
+        ecg2 = zeros(8,batchesInFile*6,'uint8');
+        % First Sample of ecg2 from each batch
+        ecg2(6,1:6:end) = uint8data(idx:batchSize:end);
+        ecg2(7,1:6:end) = uint8data(idx+1:batchSize:end);
+        ecg2(8,1:6:end) = uint8data(idx+2:batchSize:end);
+        % Second Sample of ecg2 from each batch
+        ecg2(6,2:6:end) = uint8data(idx+3:batchSize:end);
+        ecg2(7,2:6:end) = uint8data(idx+4:batchSize:end);
+        ecg2(8,2:6:end) = uint8data(idx+5:batchSize:end);
+        % Third Sample of ecg2 from each batch
+        ecg2(6,3:6:end) = uint8data(idx+6:batchSize:end);
+        ecg2(7,3:6:end) = uint8data(idx+7:batchSize:end);
+        ecg2(8,3:6:end) = uint8data(idx+8:batchSize:end);
+        % Fourth Sample of ecg2 from each batch
+        ecg2(6,4:6:end) = uint8data(idx+9:batchSize:end);
+        ecg2(7,4:6:end) = uint8data(idx+10:batchSize:end);
+        ecg2(8,4:6:end) = uint8data(idx+11:batchSize:end);
+        % Fifth Sample of ecg2 from each batch
+        ecg2(6,5:6:end) = uint8data(idx+12:batchSize:end);
+        ecg2(7,5:6:end) = uint8data(idx+13:batchSize:end);
+        ecg2(8,5:6:end) = uint8data(idx+14:batchSize:end);
+        % Sixth Sample of ecg2 from each batch
+        ecg2(6,6:6:end) = uint8data(idx+15:batchSize:end);
+        ecg2(7,6:6:end) = uint8data(idx+16:batchSize:end);
+        ecg2(8,6:6:end) = uint8data(idx+17:batchSize:end);
+        % Reshape and typecast
+        ecg2 = typecast(reshape(ecg2,[],1),'int64');
+        % Bit-shift
+        ecg2 = bitshift(ecg2,-40);
+        ecg2 = double(ecg2);
     end
 
     % PART 4, ECG_3
     if ecg3Available
-        filePos = miscOffset + ((ecg1Available + ecg2Available + ecg3Available) * 20);
-        fseek(fid, filePos, 'bof');
-        ecg3_serial = fread(fid, numBatches, '*uint16', batchSize-2);
-        fseek(fid, filePos+2, 'bof');
-        ecg3_s1 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+5, 'bof');
-        ecg3_s2 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+8, 'bof');
-        ecg3_s3 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+11, 'bof');
-        ecg3_s4 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+14, 'bof');
-        ecg3_s5 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        fseek(fid, filePos+17, 'bof');
-        ecg3_s6 = fread(fid, numBatches, 'bit24',(batchSize*8)-24);
-        % reshape
-        ecg3 = reshape([ecg3_s1';ecg3_s2';ecg3_s3';ecg3_s4';ecg3_s5';ecg3_s6'],[],1);
+        idx = ((ecg1Available + ecg2Available + ecg3Available) * 20) + 3;
+        % ALL ecg3 samples, pre-allocate memory equivalent to the final representation as type double
+        ecg3 = zeros(8,batchesInFile*6,'uint8');
+        % First Sample of ecg3 from each batch
+        ecg3(6,1:6:end) = uint8data(idx:batchSize:end);
+        ecg3(7,1:6:end) = uint8data(idx+1:batchSize:end);
+        ecg3(8,1:6:end) = uint8data(idx+2:batchSize:end);
+        % Second Sample of ecg3 from each batch
+        ecg3(6,2:6:end) = uint8data(idx+3:batchSize:end);
+        ecg3(7,2:6:end) = uint8data(idx+4:batchSize:end);
+        ecg3(8,2:6:end) = uint8data(idx+5:batchSize:end);
+        % Third Sample of ecg3 from each batch
+        ecg3(6,3:6:end) = uint8data(idx+6:batchSize:end);
+        ecg3(7,3:6:end) = uint8data(idx+7:batchSize:end);
+        ecg3(8,3:6:end) = uint8data(idx+8:batchSize:end);
+        % Fourth Sample of ecg3 from each batch
+        ecg3(6,4:6:end) = uint8data(idx+9:batchSize:end);
+        ecg3(7,4:6:end) = uint8data(idx+10:batchSize:end);
+        ecg3(8,4:6:end) = uint8data(idx+11:batchSize:end);
+        % Fifth Sample of ecg3 from each batch
+        ecg3(6,5:6:end) = uint8data(idx+12:batchSize:end);
+        ecg3(7,5:6:end) = uint8data(idx+13:batchSize:end);
+        ecg3(8,5:6:end) = uint8data(idx+14:batchSize:end);
+        % Sixth Sample of ecg3 from each batch
+        ecg3(6,6:6:end) = uint8data(idx+15:batchSize:end);
+        ecg3(7,6:6:end) = uint8data(idx+16:batchSize:end);
+        ecg3(8,6:6:end) = uint8data(idx+17:batchSize:end);
+        % Reshape and typecast
+        ecg3 = typecast(reshape(ecg3,[],1),'int64');
+        % Bit-shift
+        ecg3 = bitshift(ecg3,-40);
+        ecg3 = double(ecg3);
     end
+    ecg = [ecg1, ecg2, ecg3];
+
     fclose(fid);
     
     % Scale accel to g-force
-    acc_x = acc_x * 0.00006103515625;
-    acc_y = acc_y * 0.00006103515625;
-    acc_z = acc_z * 0.00006103515625;
+    acc = acc * 0.00006103515625;
+%     acc_x = acc_x * 0.00006103515625;
+%     acc_y = acc_y * 0.00006103515625;
+%     acc_z = acc_z * 0.00006103515625;
     % Scaling temp to Celsius
     temp_amb_obj(temp_amb_obj ~= 0) = (temp_amb_obj(temp_amb_obj ~= 0) * 0.02) - 273.15;
 
-    % find indices of missed batches
-    missedBatches = find(serialNumber == 0);
-    % set ecg, resp, accel, and temp data in missed batches to 'NaN'
-    if ~isempty(missedBatches)
-        % set accel, temp, resp, and ecg data to 'NaN' in missed batches (instead of 0, as is their current value)
-        acc_x(missedBatches) = NaN;
-        acc_y(missedBatches) = NaN;
-        acc_z(missedBatches) = NaN;
-        temp_amb_obj(missedBatches) = NaN;
-        % Setting invalid resp samples to NaN may cause trouble in subsequent filtering
-%       if ~isempty(resp)
-%           resp(missedBatches) = NaN;
-%       end
-        % building index numbers for missed samples in resp and ecg (6 times as many as in accel, temp, and resp)
-        startOfMissed_ecg_resp = ((missedBatches-1)*6)+1;
-        endOfMissed_ecg_resp = missedBatches*6;
-        idx = coloncat(startOfMissed_ecg_resp, endOfMissed_ecg_resp);
-        if ~isempty(ecg1)
-            ecg1(idx) = 0; % NaN or -32768 for Comm error
-        end
-        if ~isempty(ecg2)
-            ecg2(idx) = 0; % NaN or -32768 for Comm error
-        end
-        if ~isempty(ecg3)
-            ecg3(idx) = 0; % NaN or -32768 for Comm error
-        end
-    end
+%     % find indices of missed batches
+%     missedBatches = find(serialNumber == 0);
+%     % set ecg, resp, accel, and temp data in missed batches to 'NaN'
+%     if ~isempty(missedBatches)
+%         % set accel, temp, resp, and ecg data to 'NaN' in missed batches (instead of 0, as is their current value)
+%         acc_x(missedBatches) = NaN;
+%         acc_y(missedBatches) = NaN;
+%         acc_z(missedBatches) = NaN;
+%         temp_amb_obj(missedBatches) = NaN;
+%         % Setting invalid resp samples to NaN may cause trouble in subsequent filtering
+% %       if ~isempty(resp)
+% %           resp(missedBatches) = NaN;
+% %       end
+%         % building index numbers for missed samples in resp and ecg (6 times as many as in accel, temp, and resp)
+%         startOfMissed_ecg_resp = ((missedBatches-1)*6)+1;
+%         endOfMissed_ecg_resp = missedBatches*6;
+%         idx = coloncat(startOfMissed_ecg_resp, endOfMissed_ecg_resp);
+%         if ~isempty(ecg1)
+%             ecg1(idx) = 0; % NaN or -32768 for Comm error
+%         end
+%         if ~isempty(ecg2)
+%             ecg2(idx) = 0; % NaN or -32768 for Comm error
+%         end
+%         if ~isempty(ecg3)
+%             ecg3(idx) = 0; % NaN or -32768 for Comm error
+%         end
+%     end
     
     % Splitting temp into temp_ambient and tenp_object.
     % temp_ambient is stored in batches where mod(serialNumber,2) == 0.
@@ -278,7 +353,8 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
         temp_object = temp_amb_obj(2:2:end);
     end
     
-    acc = [acc_y, -acc_x, acc_z]; % yes, acc_x = acc_y, and yes, acc_y = -acc_x
+%     acc = [acc_y, -acc_x, acc_z]; % yes, acc_x = acc_y, and yes, acc_y = -acc_x
+
     % if we have one less temp_ambient or temp_object sample (because of
     % odd munber of batches), extend with a copy of last sample.
     if (length(temp_object) - length(temp_ambient)) == 1
@@ -290,9 +366,8 @@ function [serialNumber, conf, serial_ADS, eventCounter, leadoff, acc, temp, resp
     end
     
     temp = [temp_ambient, temp_object];
-    ecg = [ecg1, ecg2, ecg3];
     ecg_serials = [ecg1_serial, ecg2_serial, ecg3_serial];
-    fprintf('c3_read_ble_24bit: %f seconds\n',toc(hTic));
+    fprintf('c3_read_ble_24bit_uint8: %.2f seconds\n',toc(hTic));
 end
 
 function idx = coloncat(start, stop)
